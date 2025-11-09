@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stalkneitor 2.0
 
-## Getting Started
+Aplicação web para centralizar progresso no USACO Guide, organizar times, notas e rankings com sincronização automática de metadados.
 
-First, run the development server:
+## Stack
+- **Next.js 16 (App Router)** + TypeScript + Tailwind 4 + shadcn/ui
+- **TanStack Query** para estados assíncronos no cliente
+- **Supabase** (Auth + Postgres) com ORM **Drizzle**
+- **Octokit** para o ETL do repositório `cpinitiative/usaco-guide`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Estrutura principal
+```
+src/
+  app/
+    (app)/                → rotas autenticadas (dashboard, divisões, times, notas)
+    api/                  → Route Handlers (catálogo, progresso, notas, times, ETL)
+    docs/roadmap          → visão geral das releases
+  components/
+    layout/               → AppShell, navegação
+    providers/            → Theme + React Query providers
+    ui/                   → componentes shadcn (button, card, dialog, ...)
+  lib/
+    auth.ts               → helpers Supabase Auth
+    constants/            → status, pesos de dificuldade
+    db/                   → schema Drizzle + client
+    env.ts                → validação de variáveis de ambiente
+    supabase/             → clients server/browser/service-role
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Pré-requisitos
+- Node.js ≥ 20
+- npm (ou ative o corepack para usar pnpm)
+- Banco Postgres/Supabase pronto e credenciais preenchidas
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuração rápida
+1. Copie o arquivo de exemplo e preencha as variáveis necessárias:
+   ```bash
+   cp .env.example .env.local
+   ```
+2. Instale dependências e rode o servidor de desenvolvimento:
+   ```bash
+   npm install
+   npm run dev
+   ```
+3. Configure o banco executando as migrações do Drizzle:
+   ```bash
+   npm run db:push
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variáveis importantes
+| Campo | Descrição |
+| --- | --- |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Projeto Supabase usado pelo frontend e API |
+| `SUPABASE_SERVICE_ROLE` | Chave usada apenas em rotas seguras (ex.: ETL) |
+| `DATABASE_URL` | URL Postgres compatível com Drizzle/Supabase |
+| `GITHUB_TOKEN` | Token readonly para aumentar o rate limit da API do GitHub |
+| `ETL_SECRET` | Chave enviada no header `x-etl-secret` para `/api/sync/usaco-guide` |
 
-## Learn More
+## Scripts npm
+| Script | Descrição |
+| --- | --- |
+| `npm run dev` | Next.js em modo desenvolvimento |
+| `npm run build` / `start` | Build e execução em produção |
+| `npm run lint` | ESLint com as regras do Next |
+| `npm run db:generate` | Gera SQL a partir do schema Drizzle |
+| `npm run db:push` | Sincroniza schema Drizzle com o banco |
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Próximos passos
+- Integrar Supabase Auth nas rotas protegidas (`requireUser`)
+- Implementar mutations reais usando Drizzle + RLS no Supabase
+- Completar o ETL com tratamento de erros/batching e armazenamento em `etl_runs`
+- Conectar UI (TanStack Query) às rotas criadas

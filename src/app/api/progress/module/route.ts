@@ -1,16 +1,15 @@
 import { NextRequest } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { errorResponse, successResponse } from "@/app/api/_lib/responses";
-import { getDb, moduleProgress } from "@/lib/db";
+import { getDb, moduleProgress, problems, problemProgress } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { PROGRESS_STATUSES } from "@/lib/constants/progress";
 
 const payloadSchema = z.object({
   guideModuleId: z.string().min(1),
   status: z.enum(PROGRESS_STATUSES),
-  percent: z.number().int().min(0).max(100).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -30,7 +29,6 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
   const data = parsed.data;
-  const percent = data.percent ?? (data.status === "done" ? 100 : 0);
 
   await db
     .insert(moduleProgress)
@@ -38,16 +36,47 @@ export async function POST(req: NextRequest) {
       userId,
       guideModuleId: data.guideModuleId,
       status: data.status,
-      percent,
+      percent: 0,
     })
     .onConflictDoUpdate({
       target: [moduleProgress.userId, moduleProgress.guideModuleId],
       set: {
         status: data.status,
-        percent,
         updatedAt: new Date(),
       },
     });
+
+  const total = await db
+    .select({ value: count() })
+    .from(problems)
+    .where(eq(problems.guideModuleId, data.guideModuleId));
+
+  const done = await db
+    .select({ value: count() })
+    .from(problemProgress)
+    .innerJoin(problems, eq(problemProgress.problemId, problems.id))
+    .where(
+      and(
+        eq(problemProgress.userId, userId),
+        eq(problems.guideModuleId, data.guideModuleId),
+        eq(problemProgress.status, "done"),
+      ),
+    );
+
+  const percent =
+    total[0]?.value && total[0].value > 0
+      ? Math.round(((done[0]?.value ?? 0) / total[0].value) * 100)
+      : 0;
+
+  await db
+    .update(moduleProgress)
+    .set({ percent })
+    .where(
+      and(
+        eq(moduleProgress.userId, userId),
+        eq(moduleProgress.guideModuleId, data.guideModuleId),
+      ),
+    );
 
   const updated = await db.query.moduleProgress.findFirst({
     where: and(
@@ -59,5 +88,63 @@ export async function POST(req: NextRequest) {
   return successResponse({
     status: updated?.status ?? data.status,
     percent: updated?.percent ?? percent,
+  });
+}
+
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const moduleId = url.searchParams.get("module");
+
+  if (!moduleId) {
+    return errorResponse(400, "Missing module parameter");
+  }
+
+  let userId: string;
+  try {
+    userId = (await requireUser()).id;
+  } catch {
+    return errorResponse(401, "Unauthorized");
+  }
+
+  const db = getDb();
+  const progress = await db.query.moduleProgress.findFirst({
+    where: and(
+      eq(moduleProgress.userId, userId),
+      eq(moduleProgress.guideModuleId, moduleId),
+    ),
+  });
+
+  if (progress) {
+    return successResponse({
+      status: progress.status,
+      percent: progress.percent,
+    });
+  }
+
+  const total = await db
+    .select({ value: count() })
+    .from(problems)
+    .where(eq(problems.guideModuleId, moduleId));
+
+  const done = await db
+    .select({ value: count() })
+    .from(problemProgress)
+    .innerJoin(problems, eq(problemProgress.problemId, problems.id))
+    .where(
+      and(
+        eq(problemProgress.userId, userId),
+        eq(problems.guideModuleId, moduleId),
+        eq(problemProgress.status, "done"),
+      ),
+    );
+
+  const percent =
+    total[0]?.value && total[0].value > 0
+      ? Math.round(((done[0]?.value ?? 0) / total[0].value) * 100)
+      : 0;
+
+  return successResponse({
+    status: "not_started",
+    percent,
   });
 }

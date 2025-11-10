@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -33,6 +33,7 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     email: text("email").notNull(),
+    handle: text("handle"),
     name: text("name"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -40,6 +41,7 @@ export const users = pgTable(
   },
   (table) => ({
     emailIdx: uniqueIndex("users_email_idx").on(table.email),
+    handleIdx: uniqueIndex("users_handle_idx").on(table.handle).where(sql`handle is not null`),
   }),
 );
 
@@ -213,6 +215,28 @@ export const notes = pgTable("notes", {
   }),
   content: text("content").notNull(),
   visibility: text("visibility").notNull().default("private"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const problemSolutions = pgTable("problem_solutions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  problemId: uuid("problem_id")
+    .notNull()
+    .references(() => problems.id, { onDelete: "cascade" }),
+  guideModuleId: text("guide_module_id")
+    .notNull()
+    .references(() => modules.guideModuleId),
+  content: text("content").notNull(),
+  language: text("language").notNull().default("plaintext"),
+  isPublic: boolean("is_public").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

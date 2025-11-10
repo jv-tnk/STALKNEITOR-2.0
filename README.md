@@ -64,6 +64,7 @@ src/
 | `npm run lint` | ESLint com as regras do Next |
 | `npm run db:generate` | Gera SQL a partir do schema Drizzle |
 | `npm run db:push` | Sincroniza schema Drizzle com o banco |
+| `npm run sync:guide` | Importa/atualiza módulos e problemas do USACO Guide no Postgres |
 
 ## Próximos passos
 - Integrar Supabase Auth nas rotas protegidas (`requireUser`)

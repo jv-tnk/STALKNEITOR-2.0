@@ -3,8 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 import { serverEnv } from "@/lib/env";
 
-export function createSupabaseServerClient() {
-  const cookieStore = cookies();
+export async function createSupabaseServerClient() {
   const supabaseUrl = serverEnv.SUPABASE_URL ?? process.env.SUPABASE_URL;
   const supabaseAnon = serverEnv.SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 
@@ -12,20 +11,21 @@ export function createSupabaseServerClient() {
     throw new Error("Supabase environment variables are missing.");
   }
 
+  const store = await cookies();
+
   return createServerClient(supabaseUrl, supabaseAnon, {
     cookies: {
       get(name) {
-        return cookieStore.get(name)?.value;
+        const cookie = store.get(name);
+        if (!cookie) return undefined;
+        if (typeof cookie === "string") return cookie;
+        return "value" in cookie ? cookie.value : undefined;
       },
-      set(name, value, options) {
-        cookieStore.set({
-          name,
-          value,
-          ...options,
-        });
+      set() {
+        // no-op; server components cannot mutate cookies
       },
-      remove(name, options) {
-        cookieStore.delete({ name, ...options });
+      remove() {
+        // no-op; server components cannot mutate cookies
       },
     },
   });

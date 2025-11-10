@@ -4,12 +4,13 @@ import { z } from "zod";
 
 import { errorResponse, successResponse } from "@/app/api/_lib/responses";
 import { requireUser } from "@/lib/auth";
-import { getDb, notes } from "@/lib/db";
+import { getDb, notes, users } from "@/lib/db";
 
 const createNoteSchema = z.object({
   guideModuleId: z.string().min(1),
   problemId: z.string().uuid().optional().nullable(),
   content: z.string().min(1),
+  visibility: z.enum(["private", "public"]).default("private").optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -23,11 +24,41 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const moduleFilter = url.searchParams.get("module");
   const problemFilterParam = url.searchParams.get("problem");
+  const scope = url.searchParams.get("scope") ?? "mine";
   const problemFilter = problemFilterParam
     ? z.string().uuid().safeParse(problemFilterParam)
     : null;
 
   const db = getDb();
+  if (scope === "public") {
+    const filters: SQL<unknown>[] = [eq(notes.visibility, "public")];
+
+    if (moduleFilter) {
+      filters.push(eq(notes.guideModuleId, moduleFilter));
+    }
+    if (problemFilter?.success) {
+      filters.push(eq(notes.problemId, problemFilter.data));
+    }
+
+    const data = await db
+      .select({
+        id: notes.id,
+        content: notes.content,
+        visibility: notes.visibility,
+        updatedAt: notes.updatedAt,
+        author: {
+          id: users.id,
+          name: users.name,
+        },
+      })
+      .from(notes)
+      .leftJoin(users, eq(notes.userId, users.id))
+      .where(combine(filters))
+      .orderBy(() => desc(notes.updatedAt));
+
+    return successResponse({ notes: data });
+  }
+
   const filters: SQL<unknown>[] = [eq(notes.userId, userId)];
 
   if (moduleFilter) {
@@ -71,6 +102,7 @@ export async function POST(req: NextRequest) {
       guideModuleId: data.guideModuleId,
       problemId: data.problemId ?? null,
       content: data.content,
+      visibility: data.visibility ?? "private",
     })
     .returning();
 

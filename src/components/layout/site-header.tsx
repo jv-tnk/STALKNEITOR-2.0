@@ -4,15 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserMenu } from "@/components/user-menu";
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/divisions", label: "Divisões" },
+  { href: "/rankings", label: "Ranking" },
   { href: "/teams", label: "Times" },
   { href: "/notes", label: "Notas" },
 ];
 
-export function SiteHeader() {
+type SiteHeaderProps = {
+  user: {
+    id: string;
+    email: string;
+    name?: string | null;
+    handle?: string | null;
+  };
+};
+
+export function SiteHeader({ user }: SiteHeaderProps) {
   const pathname = usePathname();
 
   return (
@@ -37,8 +48,9 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <ThemeToggle />
+          <UserMenu name={user.name} email={user.email} />
         </div>
       </div>
     </header>

@@ -6,6 +6,7 @@ create type progress_status as enum ('not_started','in_progress','skipped','done
 create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   email text unique not null,
+  handle text unique,
   name text,
   created_at timestamptz default now()
 );
@@ -108,6 +109,18 @@ create table if not exists etl_runs (
   modules_upserted int default 0 not null,
   problems_upserted int default 0 not null,
   errors jsonb
+);
+
+create table if not exists problem_solutions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade,
+  problem_id uuid references problems(id) on delete cascade,
+  guide_module_id text references modules(guide_module_id),
+  content text not null,
+  language text default 'plaintext',
+  is_public boolean default true not null,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
 );
 
 create index if not exists modules_division_order_idx on modules(division, order_index);

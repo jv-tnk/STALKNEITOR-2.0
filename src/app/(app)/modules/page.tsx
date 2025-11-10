@@ -15,6 +15,16 @@ const DIVISION_LABELS = {
   advanced: "Advanced",
 } as const;
 
+const divisionFilters = [
+  { value: undefined, label: "Todos" },
+  { value: "general", label: "General" },
+  { value: "bronze", label: "Bronze" },
+  { value: "silver", label: "Silver" },
+  { value: "gold", label: "Gold" },
+  { value: "platinum", label: "Platinum" },
+  { value: "advanced", label: "Advanced" },
+];
+
 type SearchParams = {
   division?: string;
   q?: string;
@@ -45,6 +55,14 @@ export default async function ModulesPage({
     ? DIVISION_LABELS[divisionParam as keyof typeof DIVISION_LABELS] ?? ""
     : "";
 
+  const buildDivisionHref = (value?: string) => {
+    const params = new URLSearchParams();
+    if (value) params.set("division", value);
+    if (resolvedParams.q) params.set("q", resolvedParams.q);
+    const query = params.toString();
+    return query ? `/modules?${query}` : "/modules";
+  };
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -60,6 +78,19 @@ export default async function ModulesPage({
         </p>
       </header>
 
+      <div className="flex flex-wrap gap-2">
+        {divisionFilters.map((filter) => (
+          <Button
+            key={filter.label}
+            variant={filter.value === (divisionParam ?? undefined) ? "default" : "outline"}
+            asChild
+            size="sm"
+          >
+            <Link href={buildDivisionHref(filter.value)}>{filter.label}</Link>
+          </Button>
+        ))}
+      </div>
+
       <form className="flex flex-wrap items-center gap-3" action="/modules" method="get">
         <Input
           name="q"
@@ -67,12 +98,7 @@ export default async function ModulesPage({
           placeholder="Buscar por título ou slug"
           className="max-w-sm"
         />
-        <Input
-          name="division"
-          defaultValue={divisionParam ?? ""}
-          placeholder="Filtrar por divisão (ex.: bronze)"
-          className="max-w-xs"
-        />
+        <input type="hidden" name="division" value={divisionParam ?? ""} />
         <Button type="submit" variant="outline">
           Aplicar filtros
         </Button>

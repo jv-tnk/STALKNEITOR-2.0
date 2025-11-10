@@ -2,18 +2,13 @@ import { notFound } from "next/navigation";
 
 import Link from "next/link";
 
-import { fetchGuideCatalog } from "@/lib/usaco/guide";
+import { eq } from "drizzle-orm";
+
+import { getDb, modules as modulesTable, problems as problemsTable } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ModuleProgressCard } from "@/components/modules/module-progress-card";
+import { ProblemProgressTable } from "@/components/modules/problem-progress-table";
 
 export default async function ModulePage({
   params,
@@ -21,18 +16,28 @@ export default async function ModulePage({
   params: Promise<{ guideModuleId: string }>;
 }) {
   const resolvedParams = await params;
-  const catalog = await fetchGuideCatalog();
-  const moduleData = catalog.modules.find(
-    (module) => module.guideModuleId === resolvedParams.guideModuleId,
-  );
+  const db = getDb();
+  const moduleData = await db.query.modules.findFirst({
+    where: eq(modulesTable.guideModuleId, resolvedParams.guideModuleId),
+  });
 
   if (!moduleData) {
     return notFound();
   }
 
-  const moduleProblems = catalog.problems.filter(
-    (problem) => problem.guideModuleId === moduleData.guideModuleId,
-  );
+  const moduleProblems = await db
+    .select({
+      id: problemsTable.id,
+      uniqueId: problemsTable.uniqueId,
+      name: problemsTable.name,
+      url: problemsTable.url,
+      source: problemsTable.source,
+      difficulty: problemsTable.difficulty,
+      tags: problemsTable.tags,
+    })
+    .from(problemsTable)
+    .where(eq(problemsTable.guideModuleId, moduleData.guideModuleId))
+    .orderBy(problemsTable.name);
 
   return (
     <div className="space-y-6">
@@ -48,72 +53,18 @@ export default async function ModulePage({
               Abrir no USACO Guide
             </Link>
           </Button>
-          <Button variant="secondary">Adicionar nota</Button>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Problemas ({moduleProblems.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[240px]">Problema</TableHead>
-                  <TableHead>Fonte</TableHead>
-                  <TableHead>Dificuldade</TableHead>
-                  <TableHead>Tags</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {moduleProblems.map((problem) => (
-                  <TableRow key={problem.id}>
-                    <TableCell className="font-medium">
-                      <a
-                        href={problem.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary underline-offset-2 hover:underline"
-                      >
-                        {problem.name}
-                      </a>
-                    </TableCell>
-                    <TableCell>{problem.source ?? "—"}</TableCell>
-                    <TableCell>{problem.difficulty ?? "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {problem.tags.length ? (
-                          problem.tags.map((tag) => (
-                            <Badge variant="secondary" key={tag}>
-                              {tag}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Sem tags
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!moduleProblems.length && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="text-center text-sm text-muted-foreground"
-                    >
-                      Nenhum problema listado para este módulo.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <ModuleProgressCard
+        guideModuleId={moduleData.guideModuleId}
+        totalProblems={moduleProblems.length}
+      />
+
+      <div className="rounded-md border p-4">
+        <h2 className="text-xl font-semibold">Problemas ({moduleProblems.length})</h2>
+        <ProblemProgressTable guideModuleId={moduleData.guideModuleId} problems={moduleProblems} />
+      </div>
     </div>
   );
 }

@@ -23,11 +23,12 @@ type SearchParams = {
 export default async function ModulesPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: Promise<SearchParams>;
 }) {
+  const resolvedParams = await searchParams;
   const { modules } = await fetchGuideCatalog();
-  const divisionParam = searchParams.division?.toLowerCase();
-  const query = searchParams.q?.trim().toLowerCase();
+  const divisionParam = resolvedParams.division?.toLowerCase();
+  const query = resolvedParams.q?.trim().toLowerCase();
 
   const filtered = modules.filter((module) => {
     const matchesDivision = divisionParam
@@ -62,7 +63,7 @@ export default async function ModulesPage({
       <form className="flex flex-wrap items-center gap-3" action="/modules" method="get">
         <Input
           name="q"
-          defaultValue={searchParams.q ?? ""}
+          defaultValue={resolvedParams.q ?? ""}
           placeholder="Buscar por título ou slug"
           className="max-w-sm"
         />

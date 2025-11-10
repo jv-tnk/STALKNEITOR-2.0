@@ -18,11 +18,12 @@ import {
 export default async function ModulePage({
   params,
 }: {
-  params: { guideModuleId: string };
+  params: Promise<{ guideModuleId: string }>;
 }) {
+  const resolvedParams = await params;
   const catalog = await fetchGuideCatalog();
   const moduleData = catalog.modules.find(
-    (module) => module.guideModuleId === params.guideModuleId,
+    (module) => module.guideModuleId === resolvedParams.guideModuleId,
   );
 
   if (!moduleData) {

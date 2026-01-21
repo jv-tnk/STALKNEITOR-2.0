@@ -20,3 +20,4 @@ Plataforma de monitoria e treinamento para programacao competitiva.
    - `python manage.py runserver`
 
 O script `setup.sh` automatiza boa parte desse fluxo.
+# STALKNEITOR-2.1

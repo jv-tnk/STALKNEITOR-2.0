@@ -1,0 +1,170 @@
+{% if mode == 'rating' %}
+<div class="space-y-3">
+    {% for row in rows %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-4 shadow-sm">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex w-12 flex-col items-center text-center">
+                    <div class="text-lg font-bold text-slate-100">#{{ row.rank }}</div>
+                    {% if row.delta > 0 %}
+                        <div class="text-[11px] text-emerald-400">↑{{ row.delta }}</div>
+                    {% elif row.delta < 0 %}
+                        <div class="text-[11px] text-rose-400">↓{{ row.delta|cut:"-" }}</div>
+                    {% else %}
+                        <div class="text-[11px] text-slate-500">→0</div>
+                    {% endif %}
+                </div>
+                <div class="h-10 w-10 rounded-xl bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-200">
+                    {{ row.aluno.user.username|slice:":1"|upper }}
+                </div>
+                <div>
+                    <div class="text-sm font-semibold text-slate-100">{{ row.aluno.user.username }}</div>
+                    <div class="text-xs text-slate-500">{{ row.aluno.turma.nome|default:"Sem turma" }}</div>
+                </div>
+            </div>
+            <div class="flex flex-col md:items-end">
+                <div class="text-2xl font-bold text-indigo-400">{{ row.points }}</div>
+                <div class="text-xs text-slate-400">
+                    {% if category == 'overall' %}rating geral{% else %}rating oficial{% endif %}
+                </div>
+                <div class="text-[11px] text-slate-500">
+                    CF: {% if row.points_cf > 0 %}{{ row.points_cf }}{% else %}Sem rating{% endif %}
+                    · AC: {% if row.points_ac > 0 %}{{ row.points_ac }}{% else %}Sem rating{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>Atualizado: {% if row.rating_updated_at %}{{ row.rating_updated_at|date:"d/m/Y" }}{% else %}n/a{% endif %}</span>
+            <span>{% if row.points > 0 %}Score normalizado{% else %}Sem rating suficiente{% endif %}</span>
+        </div>
+    </div>
+    {% empty %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-slate-400">
+        Nenhum aluno encontrado para os filtros atuais.
+    </div>
+    {% endfor %}
+</div>
+{% elif mode == 'activity' %}
+<div class="space-y-3">
+    {% for row in rows %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-4 shadow-sm">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex w-12 flex-col items-center text-center">
+                    <div class="text-lg font-bold text-slate-100">#{{ row.rank }}</div>
+                    {% if row.delta > 0 %}
+                        <div class="text-[11px] text-emerald-400">↑{{ row.delta }}</div>
+                    {% elif row.delta < 0 %}
+                        <div class="text-[11px] text-rose-400">↓{{ row.delta|cut:"-" }}</div>
+                    {% else %}
+                        <div class="text-[11px] text-slate-500">→0</div>
+                    {% endif %}
+                </div>
+                <div class="h-10 w-10 rounded-xl bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-200">
+                    {{ row.aluno.user.username|slice:":1"|upper }}
+                </div>
+                <div>
+                    <div class="text-sm font-semibold text-slate-100">{{ row.aluno.user.username }}</div>
+                    <div class="text-xs text-slate-500">{{ row.aluno.turma.nome|default:"Sem turma" }}</div>
+                </div>
+            </div>
+            <div class="flex flex-col md:items-end">
+                <div class="text-2xl font-bold text-indigo-400">{{ row.activity_days }}</div>
+                <div class="text-xs text-slate-400">dias ativos</div>
+                <div class="text-[11px] text-emerald-400">{{ row.activity_solves }} solves no periodo</div>
+                {% if category == 'overall' %}
+                <div class="text-[11px] text-slate-500">CF: {{ row.points_cf }} · AC: {{ row.points_ac }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-slate-400">
+        Nenhum aluno encontrado para os filtros atuais.
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="space-y-3">
+    {% for row in rows %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-4 shadow-sm">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex w-12 flex-col items-center text-center">
+                    <div class="text-lg font-bold text-slate-100">#{{ row.rank }}</div>
+                    {% if row.delta > 0 %}
+                        <div class="text-[11px] text-emerald-400">↑{{ row.delta }}</div>
+                    {% elif row.delta < 0 %}
+                        <div class="text-[11px] text-rose-400">↓{{ row.delta|cut:"-" }}</div>
+                    {% else %}
+                        <div class="text-[11px] text-slate-500">→0</div>
+                    {% endif %}
+                </div>
+                <div class="h-10 w-10 rounded-xl bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-200">
+                    {{ row.aluno.user.username|slice:":1"|upper }}
+                </div>
+                <div>
+                    <div class="text-sm font-semibold text-slate-100">{{ row.aluno.user.username }}</div>
+                    <div class="text-xs text-slate-500">{{ row.aluno.turma.nome|default:"Sem turma" }}</div>
+                </div>
+            </div>
+            <div class="flex flex-col md:items-end">
+                <div class="text-2xl font-bold text-indigo-400">{{ row.points }}</div>
+                <div class="text-xs text-emerald-400">+{{ row.weekly_points }} essa semana</div>
+                {% if category == 'overall' %}
+                <div class="text-[11px] text-slate-500">CF: {{ row.points_cf }} · AC: {{ row.points_ac }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="mt-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                <span>{{ row.tier_name }} ({{ row.tier_range }} pts)</span>
+                <span>
+                    {% if row.tier_next %}
+                        Faltam {{ row.points_to_next }} pts para {{ row.tier_next }}
+                    {% else %}
+                        Max tier
+                    {% endif %}
+                </span>
+            </div>
+            <div class="mt-2 h-2 rounded-full bg-slate-800">
+                <div class="h-2 rounded-full bg-gradient-to-r {{ row.tier_color }}" style="width: {{ row.tier_progress }}%"></div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-slate-400">
+        Nenhum aluno encontrado para os filtros atuais.
+    </div>
+    {% endfor %}
+</div>
+
+{% endif %}
+
+{% if current_user_rank %}
+<div class="sticky bottom-4 mt-6">
+    <div class="rounded-xl border border-indigo-500/40 bg-indigo-900/40 px-4 py-4 shadow-lg">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div class="text-sm text-indigo-100">
+                Voce esta <span class="font-bold">#{{ current_user_rank.rank }}</span>
+                {% if current_user_rank.delta > 0 %}
+                    <span class="text-emerald-300"> (↑{{ current_user_rank.delta }})</span>
+                {% elif current_user_rank.delta < 0 %}
+                    <span class="text-rose-300"> (↓{{ current_user_rank.delta|cut:"-" }})</span>
+                {% else %}
+                    <span class="text-slate-300"> (→0)</span>
+                {% endif %}
+            </div>
+            <div class="text-xs text-indigo-200">
+                {% if mode == 'rating' %}
+                    Score {{ current_user_rank.points }} · CF {% if current_user_rank.points_cf > 0 %}{{ current_user_rank.points_cf }}{% else %}Sem rating{% endif %} · AC {% if current_user_rank.points_ac > 0 %}{{ current_user_rank.points_ac }}{% else %}Sem rating{% endif %}
+                {% elif mode == 'activity' %}
+                    {{ current_user_rank.activity_days }} dias ativos · {{ current_user_rank.activity_solves }} solves
+                {% else %}
+                    {{ current_user_rank.points }} pts · +{{ current_user_rank.weekly_points }} essa semana
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}

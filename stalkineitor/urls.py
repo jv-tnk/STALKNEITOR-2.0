@@ -1,0 +1,1 @@
+from stalkineitor_project.urls import urlpatterns

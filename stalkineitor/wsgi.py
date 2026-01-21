@@ -1,0 +1,1 @@
+from stalkineitor_project.wsgi import application

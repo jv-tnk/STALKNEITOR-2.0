@@ -1,0 +1,59 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stalkineitor 2.0</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .rating-pill {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--rating-color);
+            color: var(--rating-text);
+        }
+        .rating-pill::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: var(--rating-fill);
+            background: var(--rating-color);
+            opacity: 0.85;
+        }
+        .rating-pill > span {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans">
+    <nav class="bg-slate-950/90 p-4 text-slate-100 shadow-md border-b border-slate-800">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Stalkineitor 2.0</h1>
+            <div>
+                <a href="{% url 'dashboard' %}" class="px-4 py-2 hover:bg-slate-800 rounded transition duration-200">Dashboard</a>
+                <a href="{% url 'ranking' %}" class="px-4 py-2 hover:bg-slate-800 rounded transition duration-200 ml-2">Ranking</a>
+                <a href="{% url 'contests_overview' %}" class="px-4 py-2 hover:bg-slate-800 rounded transition duration-200 ml-2">Contests</a>
+                <a href="{% url 'add_student' %}" class="px-4 py-2 hover:bg-slate-800 rounded transition duration-200 ml-2">Adicionar Aluno</a>
+                <a href="/admin/" target="_blank" class="px-4 py-2 hover:bg-slate-800 rounded transition duration-200 ml-2">Admin</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-4">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+    </script>
+</body>
+</html>

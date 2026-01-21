@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="space-y-6">
+    <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+            <div class="flex items-center gap-3">
+                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {% if platform == 'CF' %}bg-red-500/20 text-red-200 border border-red-500/30{% else %}bg-amber-500/20 text-amber-200 border border-amber-500/30{% endif %}">
+                    {{ platform }}
+                </span>
+                <h2 class="text-2xl font-semibold">{{ contest_id }}</h2>
+            </div>
+            <div class="mt-1 text-sm text-slate-400">
+                {% if start_time %}Primeira submissao: {{ start_time|date:"d/m/Y H:i" }}{% endif %}
+                {% if last_time %} · Ultima submissao: {{ last_time|date:"d/m/Y H:i" }}{% endif %}
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+            <span class="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
+                {{ problems|length }} problemas
+            </span>
+            <span class="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
+                {{ students_count }} alunos
+            </span>
+            <span class="px-3 py-1 rounded-full border border-slate-700 bg-slate-900/60">
+                {{ total_submissions }} submissoes
+            </span>
+            <a href="{{ contest_url }}" target="_blank" class="text-emerald-300 hover:text-emerald-200 underline underline-offset-4">
+                Abrir contest
+            </a>
+        </div>
+    </div>
+
+    {% for problem in problems %}
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 shadow-lg shadow-slate-950/30">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    {% if problem.url %}
+                        <a href="{{ problem.url }}" target="_blank" class="text-lg font-semibold hover:text-emerald-300 transition">
+                            {{ problem.index }} — {{ problem.name }}
+                        </a>
+                    {% else %}
+                        <div class="text-lg font-semibold">
+                            {{ problem.index }} — {{ problem.name }}
+                        </div>
+                    {% endif %}
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        {% for tag in problem.tags %}
+                            <span class="px-2 py-1 rounded-full bg-slate-800/70 text-slate-200 text-[11px] border border-slate-700">
+                                {{ tag }}
+                            </span>
+                        {% empty %}
+                            <span class="text-xs text-slate-500">Sem tags</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="rating-pill px-3 py-1 rounded-full text-xs font-semibold"
+                          style="--rating-color: {{ problem.rating_color }}; --rating-fill: {{ problem.rating_fill }}%; --rating-text: {{ problem.rating_text }};">
+                        <span>Rating {{ problem.rating_label }}</span>
+                    </span>
+                    {% if problem.url %}
+                        <a href="{{ problem.url }}" target="_blank" class="text-xs text-slate-400 hover:text-slate-200">
+                            Link do problema
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="mt-5 overflow-x-auto">
+                <table class="min-w-full text-sm text-slate-200">
+                    <thead>
+                        <tr class="text-left text-xs uppercase tracking-wide text-slate-400 border-b border-slate-800">
+                            <th class="py-2 pr-4">Aluno</th>
+                            <th class="py-2">Submissoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in problem.rows %}
+                            <tr class="border-b border-slate-900">
+                                <td class="py-3 pr-4">
+                                    <div class="font-semibold text-slate-100">{{ row.student.user.username }}</div>
+                                    <div class="text-xs text-slate-500">
+                                        {% if platform == 'CF' %}
+                                            {{ row.student.handle_codeforces }}
+                                        {% else %}
+                                            {{ row.student.handle_atcoder }}
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="py-3">
+                                    <div class="flex flex-wrap gap-2">
+                                        {% for submission in row.submissions %}
+                                            {% if submission.url %}
+                                                <a href="{{ submission.url }}" target="_blank" title="{{ submission.submitted_at|date:'d/m H:i' }}"
+                                                   class="px-2 py-1 rounded-full text-xs font-semibold border {{ submission.verdict_class }}">
+                                                    {{ submission.verdict }}
+                                                </a>
+                                            {% else %}
+                                                <span class="px-2 py-1 rounded-full text-xs font-semibold border {{ submission.verdict_class }}">
+                                                    {{ submission.verdict }}
+                                                </span>
+                                            {% endif %}
+                                        {% empty %}
+                                            <span class="text-xs text-slate-500">—</span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endfor %}
+</section>
+{% endblock %}

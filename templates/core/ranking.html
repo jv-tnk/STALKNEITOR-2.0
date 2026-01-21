@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-100">Ranking</h1>
+            <p class="text-sm text-slate-400">Comparacao por pontos, janela e turma.</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1">
+                <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Atualizado diariamente
+            </span>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+        <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-2">
+                <span class="text-[11px] uppercase tracking-wide text-slate-500">Modo</span>
+                <div id="ranking-modes" class="flex flex-wrap gap-2">
+                    <button type="button" data-mode="points" class="mode-btn px-4 py-2 rounded-full border text-sm transition
+                        {% if mode == 'points' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
+                        Pontos
+                    </button>
+                    <button type="button" data-mode="rating" class="mode-btn px-4 py-2 rounded-full border text-sm transition
+                        {% if mode == 'rating' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
+                        Rating
+                    </button>
+                    <button type="button" data-mode="activity" class="mode-btn px-4 py-2 rounded-full border text-sm transition
+                        {% if mode == 'activity' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
+                        Atividade
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <span class="text-[11px] uppercase tracking-wide text-slate-500">Fonte</span>
+                <div id="ranking-tabs" class="flex flex-wrap gap-2">
+                    <button type="button" data-category="overall" class="category-btn px-4 py-2 rounded-full border text-sm transition
+                        {% if category == 'overall' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
+                        Geral
+                    </button>
+                    <button type="button" data-category="cf" class="category-btn px-4 py-2 rounded-full border text-sm transition
+                        {% if category == 'cf' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
+                        Codeforces
+                    </button>
+                    <button type="button" data-category="ac" class="category-btn px-4 py-2 rounded-full border text-sm transition
+                        {% if category == 'ac' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
+                        AtCoder
+                    </button>
+                </div>
+            </div>
+
+            <form id="ranking-filters"
+                  hx-get="{% url 'ranking_list' %}"
+                  hx-target="#ranking-list"
+                  hx-trigger="change"
+                  class="grid gap-3 md:grid-cols-3">
+                <input type="hidden" name="mode" id="modeInput" value="{{ mode }}">
+                <input type="hidden" name="category" id="categoryInput" value="{{ category }}">
+                <label class="text-xs text-slate-400">
+                    Escopo
+                    <select name="scope" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                        <option value="global" {% if scope == 'global' %}selected{% endif %}>Global</option>
+                        <option value="turma" {% if scope == 'turma' %}selected{% endif %}>Turma</option>
+                    </select>
+                </label>
+                <label class="text-xs text-slate-400">
+                    Turma
+                    <select name="turma_id" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                        <option value="">Todas</option>
+                        {% for turma in turmas %}
+                        <option value="{{ turma.id }}" {% if turma_id == turma.id %}selected{% endif %}>
+                            {{ turma.nome }} ({{ turma.semestre }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="text-xs text-slate-400">
+                    Janela
+                    <select name="window" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                        <option value="season" {% if window == 'season' %}selected{% endif %}>Temporada (mes atual)</option>
+                        <option value="7d" {% if window == '7d' %}selected{% endif %}>Ultimos 7 dias</option>
+                        <option value="30d" {% if window == '30d' %}selected{% endif %}>Ultimos 30 dias</option>
+                        <option value="all" {% if window == 'all' %}selected{% endif %}>All-time</option>
+                    </select>
+                </label>
+            </form>
+        </div>
+    </div>
+
+    <div id="ranking-list">
+        {% include 'core/partials/ranking_list.html' %}
+    </div>
+</div>
+
+<script>
+    const activateButtons = (buttons, active) => {
+        buttons.forEach(btn => {
+            btn.classList.remove('bg-indigo-600', 'border-indigo-500', 'text-white');
+            btn.classList.add('bg-slate-900', 'border-slate-700', 'text-slate-300');
+        });
+        active.classList.add('bg-indigo-600', 'border-indigo-500', 'text-white');
+        active.classList.remove('bg-slate-900', 'border-slate-700', 'text-slate-300');
+    };
+
+    document.querySelectorAll('.category-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('categoryInput').value = btn.dataset.category;
+            htmx.trigger('#ranking-filters', 'change');
+            activateButtons(document.querySelectorAll('.category-btn'), btn);
+        });
+    });
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('modeInput').value = btn.dataset.mode;
+            htmx.trigger('#ranking-filters', 'change');
+            activateButtons(document.querySelectorAll('.mode-btn'), btn);
+        });
+    });
+</script>
+{% endblock %}

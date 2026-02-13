@@ -41,10 +41,13 @@ if [ "$FORCE_CONFIGURE" = true ]; then
   ./configure-env.sh --force
 fi
 
-if command -v docker-compose >/dev/null 2>&1; then
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
   COMPOSE_CMD="docker-compose"
 else
-  COMPOSE_CMD="docker compose"
+  echo "Docker Compose nao encontrado. Instale Docker Compose v2 (docker compose)."
+  exit 1
 fi
 
 web_port="$(grep -E '^WEB_PORT=' .env | head -n 1 | cut -d'=' -f2- || true)"

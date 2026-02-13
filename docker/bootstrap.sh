@@ -1,6 +1,38 @@
 #!/bin/sh
 set -eu
 
+echo "[bootstrap] waiting for database..."
+python - <<'PY'
+import os
+import socket
+import sys
+import time
+from urllib.parse import urlparse
+
+db_url = os.environ.get("DATABASE_URL", "")
+if not db_url:
+    print("[bootstrap] DATABASE_URL ausente; seguindo sem espera ativa.")
+    sys.exit(0)
+
+parsed = urlparse(db_url)
+host = parsed.hostname or "db"
+port = parsed.port or 5432
+
+attempts = 30
+for attempt in range(1, attempts + 1):
+    try:
+        socket.getaddrinfo(host, port)
+        with socket.create_connection((host, port), timeout=2):
+            print(f"[bootstrap] database reachable at {host}:{port}")
+            sys.exit(0)
+    except Exception as exc:
+        print(f"[bootstrap] waiting db ({attempt}/{attempts}): {exc}")
+        time.sleep(2)
+
+print("[bootstrap] database did not become reachable in time.", file=sys.stderr)
+sys.exit(1)
+PY
+
 echo "[bootstrap] running migrations..."
 python manage.py migrate --noinput
 
@@ -16,11 +48,22 @@ username = os.environ.get("DJANGO_SUPERUSER_USERNAME")
 password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
 email = os.environ.get("DJANGO_SUPERUSER_EMAIL", "")
 
-if username and password and not User.objects.filter(username=username).exists():
-    User.objects.create_superuser(username=username, email=email, password=password)
-    print(f"created superuser: {username}")
+if username and password:
+    user, created = User.objects.get_or_create(
+        username=username,
+        defaults={"email": email},
+    )
+    if email:
+        user.email = email
+    user.is_superuser = True
+    user.is_staff = True
+    user.is_active = True
+    user.set_password(password)
+    user.save(update_fields=["email", "is_superuser", "is_staff", "is_active", "password"])
+    action = "created" if created else "updated"
+    print(f"{action} superuser credentials: {username}")
 else:
-    print("superuser already exists or vars missing")
+    print("superuser vars missing")
 PY
 fi
 

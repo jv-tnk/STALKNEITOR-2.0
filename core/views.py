@@ -857,6 +857,12 @@ def login_view(request):
         password = request.POST.get("password") or ""
         user = authenticate(request, username=username, password=password)
         if user:
+            # Guarantee app-level profile for users created outside signup flow
+            # (e.g. Django superuser bootstrap/createsuperuser).
+            PerfilAluno.objects.get_or_create(
+                user=user,
+                defaults={"created_via": _default_profile_origin_for_user(user)},
+            )
             auth_login(request, user)
             if next_url:
                 return redirect(next_url)

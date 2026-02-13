@@ -33,6 +33,23 @@ class AuthFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/login/', response.url)
 
+    def test_login_creates_missing_profile_for_superuser(self):
+        admin = User.objects.create_superuser(
+            username='root',
+            email='root@example.com',
+            password='StrongPass123!',
+        )
+        self.assertFalse(PerfilAluno.objects.filter(user=admin).exists())
+
+        response = self.client.post(reverse('login'), {
+            'username': 'root',
+            'password': 'StrongPass123!',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        profile = PerfilAluno.objects.get(user=admin)
+        self.assertEqual(profile.created_via, 'admin')
+
     def test_update_handles(self):
         user = User.objects.create_user(username='carol', password='StrongPass123!')
         profile = PerfilAluno.objects.create(user=user)

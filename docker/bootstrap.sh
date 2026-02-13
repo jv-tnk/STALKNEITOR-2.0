@@ -24,4 +24,24 @@ else:
 PY
 fi
 
+echo "[bootstrap] ensuring app profile for all users..."
+python manage.py shell <<'PY'
+from django.contrib.auth import get_user_model
+from core.models import PerfilAluno
+
+User = get_user_model()
+created_count = 0
+
+for user in User.objects.all():
+    origin = "admin" if (user.is_staff or user.is_superuser) else "legacy"
+    _, created = PerfilAluno.objects.get_or_create(
+        user=user,
+        defaults={"created_via": origin},
+    )
+    if created:
+        created_count += 1
+
+print(f"ensured app profile for users (created={created_count})")
+PY
+
 echo "[bootstrap] done."

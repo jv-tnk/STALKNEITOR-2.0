@@ -18,7 +18,7 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
-      - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +31,7 @@ services:
     image: redis:7
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -61,7 +61,7 @@ services:
       app-init:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      - "${WEB_PORT:-8000}:8000"
     restart: unless-stopped
 
   worker:

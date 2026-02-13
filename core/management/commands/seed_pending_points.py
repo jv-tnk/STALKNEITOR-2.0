@@ -30,18 +30,21 @@ class Command(BaseCommand):
             previous_cf = event.points_cf_raw or 0
             previous_ac = event.points_ac_raw or 0
             previous_general = event.points_general_norm or 0
+            previous_general_cf = event.points_general_cf_equiv or 0
 
             event.normalized_rating = min_rating
             event.points_awarded = base_points
             event.points_cf_raw = points_cf_raw
             event.points_ac_raw = points_ac_raw
             event.points_general_norm = base_points
+            event.points_general_cf_equiv = base_points
             event.save(update_fields=[
                 "normalized_rating",
                 "points_awarded",
                 "points_cf_raw",
                 "points_ac_raw",
                 "points_general_norm",
+                "points_general_cf_equiv",
             ])
 
             apply_score_delta(
@@ -50,6 +53,7 @@ class Command(BaseCommand):
                 event.points_cf_raw - previous_cf,
                 event.points_ac_raw - previous_ac,
                 event.points_general_norm - previous_general,
+                event.points_general_cf_equiv - previous_general_cf,
             )
             updated += 1
 

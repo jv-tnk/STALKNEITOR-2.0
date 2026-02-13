@@ -1,0 +1,868 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="train-page"
+     data-train-timer="{% if active_session %}1{% else %}0{% endif %}"
+     data-session-id="{% if active_session %}{{ active_session.id }}{% endif %}"
+     data-target-minutes="{% if active_session %}{{ active_session.target_minutes }}{% else %}{{ target_minutes }}{% endif %}"
+     data-autostart="0">
+<section class="space-y-6">
+    {% include "core/partials/welcome_tour_card.html" %}
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-100">Treino</h1>
+                <p class="text-sm text-slate-400">
+                    CF como motor conceitual (tags + rating) e AtCoder como motor de evolução (ladder por dificuldade).
+                </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900/60 p-1 text-xs">
+                    <a href="{% url 'train' %}?mode=consistency&minutes={{ target_minutes }}"
+                       class="rounded-full px-3 py-1 {% if mode == 'consistency' %}bg-indigo-600 text-white{% else %}text-slate-300 hover:text-slate-100{% endif %}">
+                        Consistência
+                    </a>
+                    <a href="{% url 'train' %}?mode=general&minutes={{ target_minutes }}"
+                       class="rounded-full px-3 py-1 {% if mode == 'general' %}bg-indigo-600 text-white{% else %}text-slate-300 hover:text-slate-100{% endif %}">
+                        Geral
+                    </a>
+                    <a href="{% url 'train' %}?mode=evolution&minutes={{ target_minutes }}"
+                       class="rounded-full px-3 py-1 {% if mode == 'evolution' %}bg-indigo-600 text-white{% else %}text-slate-300 hover:text-slate-100{% endif %}">
+                        Evolução
+                    </a>
+                    <a href="{% url 'train' %}?mode=challenge&minutes={{ target_minutes }}"
+                       class="rounded-full px-3 py-1 {% if mode == 'challenge' %}bg-indigo-600 text-white{% else %}text-slate-300 hover:text-slate-100{% endif %}">
+                        Desafio
+                    </a>
+                </div>
+
+                <div class="flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900/60 p-1 text-xs">
+                    <a href="{% url 'train' %}?mode={{ mode }}&minutes=60"
+                       class="rounded-full px-3 py-1 {% if target_minutes == 60 %}bg-slate-200 text-slate-900{% else %}text-slate-300 hover:text-slate-100{% endif %}">
+                        60m
+                    </a>
+                    <a href="{% url 'train' %}?mode={{ mode }}&minutes=90"
+                       class="rounded-full px-3 py-1 {% if target_minutes == 90 %}bg-slate-200 text-slate-900{% else %}text-slate-300 hover:text-slate-100{% endif %}">
+                        90m
+                    </a>
+                    <a href="{% url 'train' %}?mode={{ mode }}&minutes=120"
+                       class="rounded-full px-3 py-1 {% if target_minutes == 120 %}bg-slate-200 text-slate-900{% else %}text-slate-300 hover:text-slate-100{% endif %}">
+                        120m
+                    </a>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 p-1.5 text-xs">
+                    <label class="train-blind-toggle">
+                        <input type="checkbox" data-blind-toggle="rating">
+                        <span>Ocultar dificuldade</span>
+                    </label>
+                    <label class="train-blind-toggle">
+                        <input type="checkbox" data-blind-toggle="tags">
+                        <span>Ocultar tags</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-3">
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-slate-500">Objetivo do dia</div>
+                        <div class="mt-1 text-lg font-semibold text-slate-100">
+                            {% if session_plan %}{{ session_plan.objective }}{% else %}CF + AC{% endif %}
+                        </div>
+                        <div class="mt-1 text-sm text-slate-400">Tempo alvo: <span class="font-semibold text-slate-200">{{ target_minutes }} min</span></div>
+                    </div>
+                    <div class="rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1 text-xs text-slate-300">
+                        Modo: <span class="font-semibold text-slate-100">
+                            {% if mode == "consistency" %}Consistência{% elif mode == "challenge" %}Desafio{% elif mode == "general" %}Geral{% else %}Evolução{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                    {% if active_session %}
+                        <a href="{% url 'train_session' active_session.id %}"
+                           class="inline-flex items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30">
+                            Continuar sessão
+                        </a>
+                    {% else %}
+                        <form method="post"
+                              action="{% url 'train_session_start' %}"
+                              class="js-train-start-form"
+                              data-start-title="Iniciar sessão de treino"
+                              data-start-detail="{% if mode == 'consistency' %}Consistência{% elif mode == 'challenge' %}Desafio{% elif mode == 'general' %}Geral{% else %}Evolução{% endif %} • {{ target_minutes }} min">
+                            {% csrf_token %}
+                            <input type="hidden" name="mode" value="{{ mode }}">
+                            <input type="hidden" name="minutes" value="{{ target_minutes }}">
+                            <button type="submit"
+                                    class="inline-flex items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30">
+                                Iniciar sessão
+                            </button>
+                        </form>
+
+                        <form method="post"
+                              action="{% url 'train_session_start' %}"
+                              class="js-train-start-form flex-1 min-w-full space-y-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3"
+                              data-start-title="Iniciar sessão personalizada"
+                              data-start-detail="Configuração manual">
+                            {% csrf_token %}
+                            <input type="hidden" name="mode" value="custom">
+
+                            <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Sessão personalizada</div>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                <label class="text-[11px] text-slate-400">
+                                    Minutos
+                                    <input type="number" name="minutes" min="{{ custom_min_minutes }}" max="240" step="1"
+                                           value="{{ session_custom_defaults.minutes }}"
+                                           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100">
+                                </label>
+                                <label class="text-[11px] text-slate-400">
+                                    Rating mínimo
+                                    <input type="number" name="rating_min" min="0" max="4000" step="1"
+                                           value="{{ session_custom_defaults.rating_min }}"
+                                           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100">
+                                </label>
+                                <label class="text-[11px] text-slate-400">
+                                    Rating máximo
+                                    <input type="number" name="rating_max" min="0" max="4000" step="1"
+                                           value="{{ session_custom_defaults.rating_max }}"
+                                           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100">
+                                </label>
+                                <label class="text-[11px] text-slate-400">
+                                    Problemas do CF
+                                    <input type="number" name="cf_count" min="0" max="20"
+                                           value="{{ session_custom_defaults.cf_count }}"
+                                           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100">
+                                </label>
+                                <label class="text-[11px] text-slate-400 sm:col-span-2">
+                                    Problemas do AC
+                                    <input type="number" name="ac_count" min="0" max="20"
+                                           value="{{ session_custom_defaults.ac_count }}"
+                                           class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100">
+                                </label>
+                            </div>
+
+                            <button type="submit"
+                                    class="w-full rounded-lg border border-indigo-500/40 bg-indigo-500/15 px-3 py-2 text-xs font-semibold text-indigo-100 hover:bg-indigo-500/25">
+                                Iniciar sessão personalizada
+                            </button>
+                        </form>
+                    {% endif %}
+
+                    <a href="{% url 'train' %}?mode={{ mode }}&minutes={{ target_minutes }}"
+                       class="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">
+                        Reset
+                    </a>
+                </div>
+
+                <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
+                    <div class="text-xs uppercase tracking-wide text-slate-500">Dica</div>
+                    <div class="mt-2 overflow-x-auto">
+                        <table class="min-w-full text-xs text-slate-300">
+                            <thead>
+                                <tr class="border-b border-slate-800 text-slate-500">
+                                    <th class="py-1.5 pr-3 text-left font-semibold">Sessão</th>
+                                    <th class="py-1.5 pr-3 text-left font-semibold">Foco</th>
+                                    <th class="py-1.5 text-left font-semibold">Quando usar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-slate-900/70">
+                                    <td class="py-1.5 pr-3 text-slate-100">Consistência</td>
+                                    <td class="py-1.5 pr-3">Consolidar base e manter ritmo</td>
+                                    <td class="py-1.5">Quando quiser treinar sem forçar dificuldade</td>
+                                </tr>
+                                <tr class="border-b border-slate-900/70">
+                                    <td class="py-1.5 pr-3 text-slate-100">Geral</td>
+                                    <td class="py-1.5 pr-3">Mix equilibrado de CF + AC</td>
+                                    <td class="py-1.5">Quando quiser variedade no treino</td>
+                                </tr>
+                                <tr class="border-b border-slate-900/70">
+                                    <td class="py-1.5 pr-3 text-slate-100">Evolução</td>
+                                    <td class="py-1.5 pr-3">Subir nível de forma gradual</td>
+                                    <td class="py-1.5">Quando estiver confortável e quiser avançar</td>
+                                </tr>
+                                <tr class="border-b border-slate-900/70">
+                                    <td class="py-1.5 pr-3 text-slate-100">Desafio</td>
+                                    <td class="py-1.5 pr-3">Problemas acima da sua faixa</td>
+                                    <td class="py-1.5">Quando quiser testar limite e aprender no erro</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-1.5 pr-3 text-slate-100">Personalizada</td>
+                                    <td class="py-1.5 pr-3">Controle total de tempo, faixa e volume</td>
+                                    <td class="py-1.5">Quando quiser um treino sob medida (mín. {{ custom_min_minutes }} min)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="text-xs uppercase tracking-wide text-slate-500">Disponibilidade da sessão</div>
+                        <div class="text-[11px] text-slate-500">
+                            CF {{ train_inventory.user.cf_zone_label }} • AC {{ train_inventory.user.ac_zone_label }}
+                        </div>
+                    </div>
+                    <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                        <div class="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+                            <div class="text-[11px] uppercase tracking-wide text-emerald-200/80">Disponíveis agora</div>
+                            <div class="mt-1 text-lg font-semibold text-emerald-100">{{ train_inventory.user.available_total }}</div>
+                            <div class="text-[11px] text-emerald-200/80">
+                                CF {{ train_inventory.user.available_cf }} • AC {{ train_inventory.user.available_ac }}
+                            </div>
+                        </div>
+                        <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                            <div class="text-[11px] uppercase tracking-wide text-amber-200/80">Pendentes de sync</div>
+                            <div class="mt-1 text-lg font-semibold text-amber-100">{{ train_inventory.user.pending_sync_total }}</div>
+                            <div class="text-[11px] text-amber-200/80">
+                                CF {{ train_inventory.user.pending_sync_cf }} • AC {{ train_inventory.user.pending_sync_ac }}
+                            </div>
+                        </div>
+                    </div>
+                    {% if request.user.is_staff %}
+                        <details class="mt-3 rounded-lg border border-slate-800 bg-slate-950/50 p-2">
+                            <summary class="cursor-pointer text-xs font-semibold text-slate-300">Detalhes globais (admin)</summary>
+                            <div class="mt-2 grid gap-2 text-[11px] text-slate-300 sm:grid-cols-3">
+                                <div class="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                                    <div class="font-semibold text-slate-200">CF (pool)</div>
+                                    <div>Total: {{ train_inventory.admin.cf.total }}</div>
+                                    <div>Disponível: {{ train_inventory.admin.cf.ready }}</div>
+                                    <div>Pendente: {{ train_inventory.admin.cf.pending }}</div>
+                                    <div>Sem rating: {{ train_inventory.admin.cf.missing }}</div>
+                                    <div>NOT_FOUND: {{ train_inventory.admin.cf.not_found }}</div>
+                                    <div>Bloqueados (>= {{ train_inventory.admin.max_attempts }}): {{ train_inventory.admin.cf.blocked }}</div>
+                                </div>
+                                <div class="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                                    <div class="font-semibold text-slate-200">AC (pool)</div>
+                                    <div>Total: {{ train_inventory.admin.ac.total }}</div>
+                                    <div>Disponível: {{ train_inventory.admin.ac.ready }}</div>
+                                    <div>Pendente: {{ train_inventory.admin.ac.pending }}</div>
+                                    <div>Sem rating: {{ train_inventory.admin.ac.missing }}</div>
+                                    <div>NOT_FOUND: {{ train_inventory.admin.ac.not_found }}</div>
+                                    <div>Bloqueados (>= {{ train_inventory.admin.max_attempts }}): {{ train_inventory.admin.ac.blocked }}</div>
+                                </div>
+                                <div class="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                                    <div class="font-semibold text-slate-200">Total</div>
+                                    <div>Problemas: {{ train_inventory.admin.total.total }}</div>
+                                    <div>Disponíveis: {{ train_inventory.admin.total.ready }}</div>
+                                    <div>Pendentes: {{ train_inventory.admin.total.pending }}</div>
+                                    <div>Sem rating: {{ train_inventory.admin.total.missing }}</div>
+                                    <div>NOT_FOUND: {{ train_inventory.admin.total.not_found }}</div>
+                                    <div>Bloqueados: {{ train_inventory.admin.total.blocked }}</div>
+                                </div>
+                            </div>
+                        </details>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <div class="text-xs uppercase tracking-wide text-slate-500">Diagnóstico (GPS)</div>
+                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                        <div class="text-xs text-slate-400">CF rating base</div>
+                        <div class="mt-1 text-xl font-semibold text-slate-100">{{ cf_baseline }}</div>
+                        <div class="mt-2 text-xs text-slate-500">
+                            Tendência:
+                            <span class="font-semibold {% if cf_trend_7d and cf_trend_7d > 0 %}text-emerald-300{% elif cf_trend_7d and cf_trend_7d < 0 %}text-rose-300{% else %}text-slate-300{% endif %}">
+                                {% if cf_trend_7d is None %}n/d{% else %}{{ cf_trend_7d }}{% endif %}
+                            </span> (7d)
+                            <span class="text-slate-500">•</span>
+                            <span class="font-semibold {% if cf_trend_30d and cf_trend_30d > 0 %}text-emerald-300{% elif cf_trend_30d and cf_trend_30d < 0 %}text-rose-300{% else %}text-slate-300{% endif %}">
+                                {% if cf_trend_30d is None %}n/d{% else %}{{ cf_trend_30d }}{% endif %}
+                            </span> (30d)
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                        <div class="text-xs text-slate-400">Zona CF recomendada</div>
+                        <div class="mt-1 text-xl font-semibold text-slate-100">{{ cf_zone.low }}–{{ cf_zone.high }}</div>
+                        <div class="mt-2 text-xs text-slate-500">Modo ajusta a faixa (consistência/evolução/desafio).</div>
+                    </div>
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                        <div class="text-xs text-slate-400">AC baseline</div>
+                        <div class="mt-1 text-xl font-semibold text-slate-100">{{ ac_baseline }}</div>
+                        <div class="mt-2 text-xs text-slate-500">
+                            Ladder: easy {{ ac_ranges.easy.0 }}–{{ ac_ranges.easy.1 }}, medium {{ ac_ranges.medium.0 }}–{{ ac_ranges.medium.1 }}, stretch {{ ac_ranges.stretch.0 }}–{{ ac_ranges.stretch.1 }}.
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                        <div class="text-xs text-slate-400">Padrão de trava (30d)</div>
+                        <div class="mt-1 text-xl font-semibold text-slate-100">
+                            {% if stuck_reason %}
+                                {% if stuck_reason == "idea" %}Ideia{% elif stuck_reason == "implementation" %}Implementação{% elif stuck_reason == "math" %}Matemática{% elif stuck_reason == "reading" %}Leitura{% elif stuck_reason == "edge_cases" %}Edge cases{% else %}{{ stuck_reason }}{% endif %}
+                            {% else %}
+                                n/d
+                            {% endif %}
+                        </div>
+                        <div class="mt-2 text-xs text-slate-500">
+                            {% if stuck_reason %}{{ stuck_count }} ocorrência(s) no mês.{% else %}Sem dados ainda (use a sessão para registrar).{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="train-tags-field mt-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                    <div class="text-xs text-slate-400">Tags foco (CF)</div>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        {% if cf_meta.weak_tags %}
+                            {% for tag in cf_meta.weak_tags %}
+                                <span class="rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-100">
+                                    {{ tag }}
+                                </span>
+                            {% endfor %}
+                        {% endif %}
+                        {% if cf_meta.growth_tags %}
+                            {% for growth_tag in cf_meta.growth_tags %}
+                                <span class="rounded-full border border-indigo-400/40 bg-indigo-500/10 px-2 py-1 text-[11px] font-semibold text-indigo-100">
+                                    crescimento: {{ growth_tag }}
+                                </span>
+                            {% endfor %}
+                        {% endif %}
+                        {% if not cf_meta.weak_tags and not cf_meta.growth_tags %}
+                            <span class="text-xs text-slate-500">Sem dados suficientes ainda.</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <div class="text-xs uppercase tracking-wide text-slate-500">Fila e histórico</div>
+
+                <div class="mt-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm font-semibold text-slate-100">Próximos na fila</div>
+                        <div class="text-xs text-slate-500">{{ queue_items|length }}/12</div>
+                    </div>
+                    <div class="mt-3 space-y-2">
+                        {% for qi in queue_items %}
+                            <div class="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[10px] font-semibold text-slate-200">{{ qi.platform }}</span>
+                                        <span class="train-rating-field rating-pill px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                              style="--rating-color: {{ qi.rating_color }}; --rating-fill: {{ qi.rating_fill }}%; --rating-text: {{ qi.rating_text }};">
+                                            <span>Rating {{ qi.rating_label }}</span>
+                                        </span>
+                                        <span class="train-rating-placeholder rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-300">
+                                            Dificuldade oculta
+                                        </span>
+                                    </div>
+                                    <a href="{{ qi.problem_url }}" target="_blank" class="mt-2 block truncate text-sm font-semibold text-slate-100 hover:text-emerald-300">
+                                        {{ qi.title|default:qi.problem_url }}
+                                    </a>
+                                    {% if qi.tags_list %}
+                                        <div class="train-tags-field mt-2 flex flex-wrap gap-1">
+                                            {% for tag in qi.tags_list|slice:":4" %}
+                                                <span class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-200">{{ tag }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="train-tags-placeholder mt-2 text-[11px] text-slate-500">Tags ocultas</div>
+                                    {% endif %}
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <form method="post" action="{% url 'train_queue_remove' qi.id %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                        <button type="submit" class="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800">
+                                            Remover
+                                        </button>
+                                    </form>
+                                    {% if qi.platform == "CF" or qi.platform == "AC" %}
+                                        <form method="post" action="{% url 'train_block_problem' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="platform" value="{{ qi.platform }}">
+                                            <input type="hidden" name="problem_url" value="{{ qi.problem_url }}">
+                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                            <button type="submit" class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs text-rose-100 hover:bg-rose-500/20">
+                                                Bloquear
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="text-sm text-slate-500">Fila vazia. Use os botões das sugestões ou salve links no bloco de upsolving.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3" id="history-section">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm font-semibold text-slate-100">Últimas sessões</div>
+                        <div class="text-xs text-slate-500">
+                            {% if history_page.paginator.count %}
+                                {{ history_page.start_index }}–{{ history_page.end_index }} / {{ history_page.paginator.count }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="mt-3 max-h-[22rem] space-y-2 overflow-y-auto pr-1">
+                        {% for row in history_rows %}
+                            <a href="{% url 'train_session' row.session.id %}"
+                               class="block rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-1.5 hover:bg-slate-900/60">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-xs font-semibold text-slate-100 sm:text-sm">
+                                        {{ row.session.started_at|date:"d/m/Y H:i" }}
+                                        <span class="text-xs text-slate-500 font-normal">•</span>
+                                        <span class="text-xs text-slate-300 font-normal">
+                                            {% if row.session.mode == "consistency" %}Consistência{% elif row.session.mode == "challenge" %}Desafio{% elif row.session.mode == "general" %}Geral{% elif row.session.mode == "custom" %}Personalizada{% else %}Evolução{% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="text-xs text-slate-400">
+                                        {{ row.counts.done }}/{{ row.counts.total }}
+                                    </div>
+                                </div>
+                                <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M20 6L9 17l-5-5"></path>
+                                        </svg>
+                                        {{ row.counts.solved }}
+                                    </span>
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-sky-100">
+                                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M4 5h13a2 2 0 0 1 2 2v12H6a2 2 0 0 0-2 2V5z"></path>
+                                            <path d="M6 5v14"></path>
+                                        </svg>
+                                        {{ row.counts.editorial }}
+                                    </span>
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-rose-100">
+                                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M18 6L6 18"></path>
+                                            <path d="M6 6l12 12"></path>
+                                        </svg>
+                                        {{ row.counts.stuck }}
+                                    </span>
+                                </div>
+                            </a>
+                        {% empty %}
+                            <div class="text-sm text-slate-500">Sem histórico ainda.</div>
+                        {% endfor %}
+                    </div>
+                    {% if history_page.paginator.count > history_page.paginator.per_page %}
+                        <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+                            <div>
+                                Página {{ history_page.number }} de {{ history_page.paginator.num_pages }}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                {% if history_page.has_previous %}
+                                    <a href="?{{ history_query_prefix }}history_page={{ history_page.previous_page_number }}#history-section"
+                                       class="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200 hover:bg-slate-800">
+                                        Anterior
+                                    </a>
+                                {% endif %}
+                                {% if history_page.has_next %}
+                                    <a href="?{{ history_query_prefix }}history_page={{ history_page.next_page_number }}#history-section"
+                                       class="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200 hover:bg-slate-800">
+                                        Próxima
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if upsolving_feedback %}
+        <div class="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {{ upsolving_feedback }}
+        </div>
+    {% endif %}
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <div class="text-xs uppercase tracking-wide text-slate-500">Upsolving</div>
+                <h2 class="mt-1 text-lg font-semibold text-slate-100">Lista de links para resolver depois</h2>
+                <p class="text-xs text-slate-400">
+                    Cole links de problemas e guarde tudo em uma lista pessoal.
+                </p>
+            </div>
+            <div class="rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-300">
+                {{ upsolving_total }} link{{ upsolving_total|pluralize }} salvo{{ upsolving_total|pluralize }}
+            </div>
+        </div>
+
+        <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <form method="post" action="{% url 'train_upsolving_add' %}" class="space-y-3">
+                {% csrf_token %}
+                <div class="grid gap-3 md:grid-cols-2">
+                    <label class="text-xs text-slate-400">
+                        Plataforma (opcional)
+                        <select name="platform_hint"
+                                class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-slate-100">
+                            <option value="AUTO" selected>Detectar pelo link</option>
+                            <option value="CF">Codeforces</option>
+                            <option value="AC">AtCoder</option>
+                            <option value="OT">Outros</option>
+                        </select>
+                    </label>
+                    <label class="text-xs text-slate-400">
+                        Título (opcional, para 1 link)
+                        <input type="text"
+                               name="title"
+                               maxlength="255"
+                               placeholder="Ex.: Revisar greedy do treino"
+                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500">
+                    </label>
+                </div>
+                <label class="block text-xs text-slate-400">
+                    Links (1 por linha)
+                    <textarea name="problem_urls"
+                              rows="4"
+                              placeholder="https://codeforces.com/contest/1234/problem/C&#10;https://atcoder.jp/contests/abc357/tasks/abc357_d"
+                              class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500"></textarea>
+                </label>
+                <button type="submit"
+                        class="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25">
+                    Salvar links de upsolving
+                </button>
+            </form>
+        </div>
+
+        <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold text-slate-100">Meus links salvos</div>
+                <div class="text-xs text-slate-500">Mostrando até 30</div>
+            </div>
+            <div class="mt-3 space-y-2">
+                {% for up_item in upsolving_items %}
+                    <div class="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[10px] font-semibold text-slate-200">{{ up_item.platform }}</span>
+                                <span class="train-rating-field rating-pill px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                      style="--rating-color: {{ up_item.rating_color }}; --rating-fill: {{ up_item.rating_fill }}%; --rating-text: {{ up_item.rating_text }};">
+                                    <span>Rating {{ up_item.rating_label }}</span>
+                                </span>
+                                <span class="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2 py-0.5 text-[10px] text-indigo-100">
+                                    link manual
+                                </span>
+                            </div>
+                            <a href="{{ up_item.problem_url }}" target="_blank" class="mt-2 block truncate text-sm font-semibold text-slate-100 hover:text-emerald-300">
+                                {{ up_item.title|default:up_item.problem_url }}
+                            </a>
+                            {% if up_item.title %}
+                                <div class="mt-1 truncate text-[11px] text-slate-500">{{ up_item.problem_url }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <a href="{{ up_item.problem_url }}" target="_blank"
+                               class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+                                Abrir
+                            </a>
+                            <form method="post" action="{% url 'train_queue_remove' up_item.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.path }}">
+                                <button type="submit"
+                                        class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100 hover:bg-rose-500/20">
+                                    Remover
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-3 text-sm text-slate-500">
+                        Nenhum link salvo ainda.
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+            <div class="flex items-end justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-100">Sugestões (Codeforces)</h2>
+                    <p class="text-sm text-slate-400">
+                        Conceito + tags foco • Zona {{ cf_zone.low }}–{{ cf_zone.high }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-4 space-y-3">
+                {% for s in cf_suggestions %}
+                    <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="rounded-full border border-indigo-500/40 bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-100">CF</span>
+                                    <span class="train-rating-field rating-pill px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                          style="--rating-color: {{ s.rating_color }}; --rating-fill: {{ s.rating_fill }}%; --rating-text: {{ s.rating_text }};">
+                                        <span>Rating {{ s.rating_label }}</span>
+                                    </span>
+                                    <span class="train-rating-placeholder rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-300">
+                                        Dificuldade oculta
+                                    </span>
+                                </div>
+                                <a href="{{ s.problem_url }}" target="_blank"
+                                   class="mt-2 block truncate text-sm font-semibold text-slate-100 hover:text-emerald-300">
+                                    {{ s.title }}
+                                </a>
+                                <div class="mt-2 text-xs text-slate-500">{{ s.why }}</div>
+                                <div class="train-tags-field mt-3 flex flex-wrap gap-2">
+                                    {% for tag in s.tags %}
+                                        {% if tag in cf_meta.weak_tags %}
+                                            <span class="rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100">{{ tag }}</span>
+                                        {% elif cf_meta.growth_tags and tag in cf_meta.growth_tags %}
+                                            <span class="rounded-full border border-indigo-400/40 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-100">{{ tag }}</span>
+                                        {% else %}
+                                            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-200">{{ tag }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <div class="train-tags-placeholder mt-3 text-[11px] text-slate-500">Tags ocultas</div>
+                            </div>
+
+                            <div class="flex flex-col items-end gap-2">
+                                <a href="{{ s.problem_url }}" target="_blank"
+                                   class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                                    Abrir
+                                </a>
+                                <form method="post" action="{% url 'train_queue_add' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="platform" value="CF">
+                                    <input type="hidden" name="problem_url" value="{{ s.problem_url }}">
+                                    <input type="hidden" name="title" value="{{ s.title }}">
+                                    <input type="hidden" name="rating" value="{{ s.rating }}">
+                                    <input type="hidden" name="tags" value="{{ s.tags|join:',' }}">
+                                    <input type="hidden" name="source" value="cf_suggest">
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit"
+                                            class="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25">
+                                        Adicionar à fila
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'train_block_problem' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="platform" value="CF">
+                                    <input type="hidden" name="problem_url" value="{{ s.problem_url }}">
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit"
+                                            class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 hover:bg-rose-500/20">
+                                        Bloquear
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-400">
+                        Sem sugestões de CF suficientes ainda. (Dica: aguarde sync de contests/ratings e/ou ajuste modo/faixa.)
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+            <div class="flex items-end justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-100">Sugestões (AtCoder)</h2>
+                    <p class="text-sm text-slate-400">Ladder por dificuldade • baseline {{ ac_baseline }}</p>
+                </div>
+            </div>
+
+            <div class="mt-4 space-y-3">
+                {% for s in ac_suggestions %}
+                    <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-100">AC</span>
+                                    <span class="train-rating-field rating-pill px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                          style="--rating-color: {{ s.rating_color }}; --rating-fill: {{ s.rating_fill }}%; --rating-text: {{ s.rating_text }};">
+                                        <span>Rating {{ s.rating_label }}</span>
+                                    </span>
+                                    <span class="train-rating-field rounded-full border border-slate-800 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-200">{{ s.relative }}</span>
+                                    <span class="train-rating-field rounded-full border border-slate-800 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-200">{{ s.duration }}</span>
+                                    <span class="train-rating-placeholder rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-300">
+                                        Dificuldade oculta
+                                    </span>
+                                </div>
+                                <a href="{{ s.problem_url }}" target="_blank"
+                                   class="mt-2 block truncate text-sm font-semibold text-slate-100 hover:text-emerald-300">
+                                    {{ s.title }}
+                                </a>
+                                <div class="mt-2 text-xs text-slate-500">{{ s.why }}</div>
+                            </div>
+
+                            <div class="flex flex-col items-end gap-2">
+                                <a href="{{ s.problem_url }}" target="_blank"
+                                   class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                                    Abrir
+                                </a>
+                                <form method="post" action="{% url 'train_queue_add' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="platform" value="AC">
+                                    <input type="hidden" name="problem_url" value="{{ s.problem_url }}">
+                                    <input type="hidden" name="title" value="{{ s.title }}">
+                                    <input type="hidden" name="rating" value="{{ s.rating }}">
+                                    <input type="hidden" name="tags" value="">
+                                    <input type="hidden" name="source" value="ac_suggest">
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit"
+                                            class="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25">
+                                        Adicionar à fila
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'train_block_problem' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="platform" value="AC">
+                                    <input type="hidden" name="problem_url" value="{{ s.problem_url }}">
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit"
+                                            class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 hover:bg-rose-500/20">
+                                        Bloquear
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-400">
+                        Sem sugestões de AtCoder suficientes ainda. (Dica: aguarde sync de contests/ratings.)
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<div id="train-start-modal"
+     class="hidden fixed inset-0 z-[12000] bg-slate-950/70 backdrop-blur-sm">
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+            <div class="text-xs uppercase tracking-wide text-slate-500">Confirmar início</div>
+            <h3 id="train-start-modal-title" class="mt-1 text-lg font-semibold text-slate-100">Iniciar sessão</h3>
+            <p id="train-start-modal-detail" class="mt-1 text-sm text-slate-400">Modo • duração</p>
+
+            <div class="mt-4 space-y-2 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+                <label class="flex items-center justify-between gap-3 text-sm text-slate-200">
+                    <span>Mostrar dificuldade ao iniciar</span>
+                    <input id="train-start-show-rating" type="checkbox" class="h-4 w-4 accent-indigo-500">
+                </label>
+                <label class="flex items-center justify-between gap-3 text-sm text-slate-200">
+                    <span>Mostrar tags ao iniciar</span>
+                    <input id="train-start-show-tags" type="checkbox" class="h-4 w-4 accent-indigo-500">
+                </label>
+            </div>
+
+            <div class="mt-5 flex items-center justify-end gap-2">
+                <button id="train-start-cancel" type="button"
+                        class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">
+                    Cancelar
+                </button>
+                <button id="train-start-confirm" type="button"
+                        class="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/25">
+                    Iniciar sessão
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    const modal = document.getElementById("train-start-modal");
+    if (!modal) return;
+
+    const titleEl = document.getElementById("train-start-modal-title");
+    const detailEl = document.getElementById("train-start-modal-detail");
+    const showRatingEl = document.getElementById("train-start-show-rating");
+    const showTagsEl = document.getElementById("train-start-show-tags");
+    const cancelBtn = document.getElementById("train-start-cancel");
+    const confirmBtn = document.getElementById("train-start-confirm");
+    const KEY_HIDE_RATING = "train:blind:hide_rating";
+    const KEY_HIDE_TAGS = "train:blind:hide_tags";
+
+    let pendingForm = null;
+
+    function readHidePreference(key) {
+        try {
+            return localStorage.getItem(key) === "1";
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function writeHidePreference(key, hidden) {
+        try {
+            localStorage.setItem(key, hidden ? "1" : "0");
+        } catch (_) {
+            // ignore storage errors
+        }
+    }
+
+    function openModal(form) {
+        pendingForm = form;
+        if (titleEl) {
+            titleEl.textContent = form.dataset.startTitle || "Iniciar sessão";
+        }
+        if (detailEl) {
+            const minutesField = form.querySelector("[name='minutes']");
+            const minutesValue = minutesField ? String(minutesField.value || "").trim() : "";
+            let detail = form.dataset.startDetail || "Treino";
+            if (minutesValue && !/min/i.test(detail)) {
+                detail = `${detail} • ${minutesValue} min`;
+            }
+            detailEl.textContent = detail;
+        }
+        if (showRatingEl) {
+            showRatingEl.checked = !readHidePreference(KEY_HIDE_RATING);
+        }
+        if (showTagsEl) {
+            showTagsEl.checked = !readHidePreference(KEY_HIDE_TAGS);
+        }
+        modal.classList.remove("hidden");
+    }
+
+    function closeModal() {
+        modal.classList.add("hidden");
+        pendingForm = null;
+    }
+
+    function bindStartForm(form) {
+        form.addEventListener("submit", function (event) {
+            if (form.dataset.confirmBypass === "1") {
+                delete form.dataset.confirmBypass;
+                return;
+            }
+            event.preventDefault();
+            openModal(form);
+        });
+    }
+
+    document.querySelectorAll("form.js-train-start-form").forEach(bindStartForm);
+
+    cancelBtn?.addEventListener("click", closeModal);
+
+    confirmBtn?.addEventListener("click", function () {
+        if (!pendingForm) return;
+        writeHidePreference(KEY_HIDE_RATING, !(showRatingEl?.checked));
+        writeHidePreference(KEY_HIDE_TAGS, !(showTagsEl?.checked));
+        pendingForm.dataset.confirmBypass = "1";
+        pendingForm.requestSubmit();
+        closeModal();
+    });
+
+    modal.addEventListener("click", function (event) {
+        if (event.target === modal) closeModal();
+    });
+
+    window.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !modal.classList.contains("hidden")) {
+            closeModal();
+        }
+    });
+})();
+</script>
+{% endblock %}

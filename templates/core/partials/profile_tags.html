@@ -1,0 +1,186 @@
+<div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 space-y-5">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-100">Tags & tópicos (CF)</h2>
+            <p class="text-xs text-slate-400">{{ model_summary }}</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+            <a href="{% url 'user_profile_tab' student.user.username 'tags' %}?period=all"
+               hx-get="{% url 'user_profile_tab' student.user.username 'tags' %}?period=all"
+               hx-target="#profile-tab-content"
+               hx-swap="innerHTML"
+               class="rounded-full border px-3 py-1 {% if period == 'all' %}border-indigo-500/40 bg-indigo-500/15 text-indigo-100{% else %}border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800{% endif %}">
+                All-time
+            </a>
+            <a href="{% url 'user_profile_tab' student.user.username 'tags' %}?period=season"
+               hx-get="{% url 'user_profile_tab' student.user.username 'tags' %}?period=season"
+               hx-target="#profile-tab-content"
+               hx-swap="innerHTML"
+               class="rounded-full border px-3 py-1 {% if period == 'season' %}border-indigo-500/40 bg-indigo-500/15 text-indigo-100{% else %}border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800{% endif %}">
+                Temporada
+            </a>
+            <a href="{% url 'user_profile_tab' student.user.username 'tags' %}?period=30d"
+               hx-get="{% url 'user_profile_tab' student.user.username 'tags' %}?period=30d"
+               hx-target="#profile-tab-content"
+               hx-swap="innerHTML"
+               class="rounded-full border px-3 py-1 {% if period == '30d' %}border-indigo-500/40 bg-indigo-500/15 text-indigo-100{% else %}border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800{% endif %}">
+                30d
+            </a>
+        </div>
+    </div>
+
+    {% if not has_tags %}
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-sm text-slate-400">
+            Ainda não há dados suficientes de tags no Codeforces para este período.
+        </div>
+    {% else %}
+        <div class="grid gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <div class="text-[11px] uppercase tracking-wide text-slate-500">Tags analisadas</div>
+                <div class="mt-1 text-2xl font-bold text-slate-100">{{ tags_total }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <div class="text-[11px] uppercase tracking-wide text-slate-500">Problemas (tags)</div>
+                <div class="mt-1 text-2xl font-bold text-slate-100">{{ summary_solved }}/{{ summary_attempted }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <div class="text-[11px] uppercase tracking-wide text-slate-500">Baseline CF</div>
+                <div class="mt-1 text-2xl font-bold text-indigo-200">{{ baseline_cf }}</div>
+                <div class="text-[11px] text-slate-500">Taxa global ajustada: {{ summary_rate|floatformat:2 }}</div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-sm font-semibold text-slate-100">Ranking técnico de tags</div>
+            <div class="mt-1 text-xs text-slate-400">
+                Índice de força combina conversão ajustada (bayesiana), eficiência de submissões, volume e dificuldade.
+            </div>
+            <div class="mt-3 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="text-xs text-slate-500">
+                        <tr>
+                            <th class="py-2 pr-4 text-left font-semibold">#</th>
+                            <th class="py-2 pr-4 text-left font-semibold">Tag</th>
+                            <th class="py-2 pr-4 text-left font-semibold">Força</th>
+                            <th class="py-2 pr-4 text-left font-semibold">Conf.</th>
+                            <th class="py-2 pr-4 text-left font-semibold">Solves</th>
+                            <th class="py-2 pr-4 text-left font-semibold">Taxa</th>
+                            <th class="py-2 pr-4 text-left font-semibold">Avg rating</th>
+                            <th class="py-2 pr-4 text-left font-semibold">Subs/prob</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-200">
+                        {% for row in tag_ranking %}
+                            <tr class="border-t border-slate-800/80">
+                                <td class="py-2 pr-4 text-slate-500">{{ forloop.counter }}</td>
+                                <td class="py-2 pr-4">
+                                    <span class="font-semibold text-slate-100">{{ row.tag }}</span>
+                                </td>
+                                <td class="py-2 pr-4">
+                                    <span class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                                        {{ row.strength_score|floatformat:1 }}
+                                    </span>
+                                </td>
+                                <td class="py-2 pr-4">
+                                    <span class="rounded-full px-2 py-0.5 text-[11px]
+                                        {% if row.confidence_label == 'Alta' %}
+                                            border border-emerald-500/30 bg-emerald-500/10 text-emerald-200
+                                        {% elif row.confidence_label == 'Média' %}
+                                            border border-amber-500/30 bg-amber-500/10 text-amber-200
+                                        {% else %}
+                                            border border-slate-700 bg-slate-800/60 text-slate-300
+                                        {% endif %}">
+                                        {{ row.confidence_label }} ({{ row.confidence_pct }}%)
+                                    </span>
+                                </td>
+                                <td class="py-2 pr-4">{{ row.solved }}/{{ row.attempted }}</td>
+                                <td class="py-2 pr-4 text-slate-400">
+                                    {{ row.solve_rate_bayes|floatformat:2 }}
+                                    <span class="text-slate-600">({{ row.solve_rate|floatformat:2 }} bruto)</span>
+                                </td>
+                                <td class="py-2 pr-4 text-slate-400">
+                                    {% if row.avg_solved_rating %}
+                                        {{ row.avg_solved_rating|floatformat:0 }}
+                                    {% elif row.avg_attempted_rating %}
+                                        {{ row.avg_attempted_rating|floatformat:0 }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="py-2 pr-4 text-slate-400">{{ row.avg_submissions|floatformat:1 }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="grid gap-4 xl:grid-cols-3">
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <div class="text-sm font-semibold text-slate-100">Pontos fortes</div>
+                <div class="mt-3 space-y-2 text-sm">
+                    {% for row in strengths %}
+                        <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="truncate font-semibold text-slate-100">{{ row.tag }}</div>
+                                <span class="text-xs text-emerald-200">{{ row.strength_score|floatformat:1 }}</span>
+                            </div>
+                            <div class="mt-0.5 text-[11px] text-slate-500">
+                                {{ row.solved }}/{{ row.attempted }} solved • taxa {{ row.solve_rate_bayes|floatformat:2 }} •
+                                {{ row.avg_submissions|floatformat:1 }} subs/prob
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-sm text-slate-400">Sem dados suficientes ainda.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <div class="text-sm font-semibold text-slate-100">Tags para evoluir agora</div>
+                <div class="mt-3 space-y-2 text-sm">
+                    {% for row in growth_tags %}
+                        <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="truncate font-semibold text-slate-100">{{ row.tag }}</div>
+                                <span class="text-xs text-indigo-200">{{ row.growth_score|floatformat:1 }}</span>
+                            </div>
+                            <div class="mt-0.5 text-[11px] text-slate-500">
+                                faixa ideal para treino • {{ row.solved }}/{{ row.attempted }} solved • conf. {{ row.confidence_label }}
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-sm text-slate-400">Sem recomendações no momento.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                <div class="text-sm font-semibold text-slate-100">Pontos de atenção</div>
+                <div class="mt-3 space-y-2 text-sm">
+                    {% for row in difficulties %}
+                        <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="truncate font-semibold text-slate-100">{{ row.tag }}</div>
+                                <span class="text-xs text-rose-200">{{ row.weakness_score|floatformat:1 }}</span>
+                            </div>
+                            <div class="mt-0.5 text-[11px] text-slate-500">
+                                {{ row.unsolved }} pendentes • taxa {{ row.solve_rate_bayes|floatformat:2 }} •
+                                {{ row.avg_submissions|floatformat:1 }} subs/prob
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-sm text-slate-400">Sem alertas relevantes no momento.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs text-slate-400">
+        <div class="font-semibold text-slate-200">Observação de plataforma</div>
+        <div class="mt-1">
+            AtCoder não possui tags oficiais por problema; por isso, esta análise de tags/tópicos usa dados do Codeforces.
+        </div>
+    </div>
+</div>

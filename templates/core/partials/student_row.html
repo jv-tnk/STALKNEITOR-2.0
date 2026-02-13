@@ -7,6 +7,6 @@
         <div class="text-sm text-slate-400">AC: {{ student.handle_atcoder|default:"-" }}</div>
     </td>
     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-        <a href="{% url 'perfil_aluno' student.user.username %}" class="text-indigo-400 hover:text-indigo-300">Ver Detalhes</a>
+        <a href="{% url 'user_profile' student.user.username %}" class="text-indigo-400 hover:text-indigo-300">Ver Detalhes</a>
     </td>
 </tr>

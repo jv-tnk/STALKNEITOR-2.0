@@ -1,0 +1,238 @@
+<div class="fixed inset-0 z-[120]" aria-modal="true" role="dialog">
+    <div class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm" onclick="closeModalRoot()"></div>
+    <div class="fixed inset-0 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4">
+            <div class="w-full max-w-5xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-800 px-6 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100">Solução — {{ problem_title }}</h3>
+                        <p class="text-xs text-slate-500 break-all">{{ problem_url }}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-2 py-1 rounded-full border border-slate-700 bg-slate-800 text-slate-200">
+                            {{ solution.get_language_display }}
+                        </span>
+                        <span class="text-xs px-2 py-1 rounded-full border
+                            {% if solution.status == 'approved' %}border-emerald-500/40 text-emerald-300 bg-emerald-500/10
+                            {% elif solution.status == 'published' %}border-indigo-500/40 text-indigo-300 bg-indigo-500/10
+                            {% else %}border-slate-600 text-slate-300 bg-slate-800{% endif %}">
+                            {{ solution.get_status_display }}
+                        </span>
+                        <button type="button" onclick="closeModalRoot()" class="text-slate-400 hover:text-slate-200">✕</button>
+                    </div>
+                </div>
+
+                {% if saved_action %}
+                    <div class="mx-6 mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                        {% if saved_action == "publish" %}
+                            Solução publicada com sucesso.
+                        {% else %}
+                            Rascunho salvo com sucesso.
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if format_message %}
+                    <div class="mx-6 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                        {{ format_message }}
+                    </div>
+                {% endif %}
+
+                {% if errors %}
+                    <div class="mx-6 mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                        Corrija os campos destacados antes de publicar.
+                    </div>
+                {% endif %}
+
+                <div class="grid gap-6 px-6 py-5 md:grid-cols-[1.1fr_1fr]">
+                    <form
+                        hx-post="{% url 'solutions_save' %}"
+                        hx-target="#modal-root"
+                        hx-swap="innerHTML"
+                        class="space-y-4"
+                    >
+                        {% csrf_token %}
+                        <input type="hidden" name="problem_url" value="{{ problem_url }}">
+                        <input type="hidden" name="contest_id" value="{{ contest_id|default_if_none:'' }}">
+                        <input type="hidden" name="platform" value="{{ platform|default_if_none:'' }}">
+                        <input type="hidden" name="origin_id" value="{{ origin_id|default_if_none:'' }}">
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Linguagem</label>
+                            <select id="solution-language-select" name="language" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                                {% for opt in language_options %}
+                                    <option value="{{ opt.slug }}" data-hljs="{{ opt.hljs_class }}" {% if opt.slug == solution.language %}selected{% endif %}>
+                                        {{ opt.label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Resumo da ideia</label>
+                            <textarea id="solution-idea-summary" name="idea_summary" rows="4" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 {% if errors.idea_summary %}border-rose-500{% endif %}">{{ solution.idea_summary|default_if_none:'' }}</textarea>
+                            {% if errors.idea_summary %}
+                                <p class="mt-1 text-xs text-rose-300">{{ errors.idea_summary|first }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Código</label>
+                            <textarea id="solution-code-textarea" name="code_text" rows="10" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 font-mono {% if errors.code_text %}border-rose-500{% endif %}">{{ solution.code_text|default_if_none:'' }}</textarea>
+                            {% if errors.code_text %}
+                                <p class="mt-1 text-xs text-rose-300">{{ errors.code_text|first }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Visibilidade</label>
+                                <select name="visibility" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                                    <option value="private" {% if solution.visibility == "private" %}selected{% endif %}>Privado</option>
+                                    <option value="class" {% if solution.visibility == "class" %}selected{% endif %}>Turma</option>
+                                    <option value="public" {% if solution.visibility == "public" %}selected{% endif %}>Público</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2">
+                                <button
+                                    type="button"
+                                    hx-post="{% url 'solutions_format' %}"
+                                    hx-target="#modal-root"
+                                    hx-swap="innerHTML"
+                                    hx-include="closest form"
+                                    class="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                                >
+                                    Formatar
+                                </button>
+                                <button type="submit" name="action" value="draft" class="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700">
+                                    Salvar rascunho
+                                </button>
+                                <button type="submit" name="action" value="publish" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500">
+                                    Publicar
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span>Preview</span>
+                            <button type="button" id="solution-copy-btn" class="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-slate-200 hover:bg-slate-800">
+                                Copiar
+                            </button>
+                            {% if solution.updated_at %}
+                                <span>{{ solution.updated_at|date:"d/m/Y H:i" }}</span>
+                            {% endif %}
+                        </div>
+                        <p id="solution-preview-summary" class="mt-3 text-xs text-slate-300 whitespace-pre-wrap {% if not solution.idea_summary %}hidden{% endif %}">
+                            {{ solution.idea_summary|default_if_none:'' }}
+                        </p>
+                        <p id="solution-preview-empty" class="mt-4 text-xs text-slate-500 {% if solution.code_text %}hidden{% endif %}">
+                            Sem código para visualizar.
+                        </p>
+                        <div id="solution-preview-block" class="mt-3 {% if not solution.code_text %}hidden{% endif %}">
+                            <div class="flex">
+                                <div id="solution-line-nums" class="select-none pr-3 text-right text-[11px] leading-5 text-slate-500 whitespace-pre"></div>
+                                <pre class="flex-1 overflow-x-auto rounded-lg border border-slate-800 bg-slate-900 p-3 text-[11px] leading-5 text-slate-100">
+                                    <code id="solution-preview-code" class="{{ hljs_class }}">{{ solution.code_text|default_if_none:'' }}</code>
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (() => {
+        const codeInput = document.getElementById('solution-code-textarea');
+        const summaryInput = document.getElementById('solution-idea-summary');
+        const langSelect = document.getElementById('solution-language-select');
+        const previewCode = document.getElementById('solution-preview-code');
+        const previewSummary = document.getElementById('solution-preview-summary');
+        const previewBlock = document.getElementById('solution-preview-block');
+        const previewEmpty = document.getElementById('solution-preview-empty');
+        const lineNums = document.getElementById('solution-line-nums');
+        const copyBtn = document.getElementById('solution-copy-btn');
+
+        if (!codeInput || !previewCode || !lineNums) return;
+
+        const updateLineNumbers = (code) => {
+            const lines = Math.max(1, code.split('\n').length);
+            lineNums.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+        };
+
+        const updatePreview = () => {
+            const code = codeInput.value || '';
+            const summary = summaryInput ? summaryInput.value || '' : '';
+            previewCode.textContent = code;
+            updateLineNumbers(code);
+
+            if (summary) {
+                previewSummary.classList.remove('hidden');
+                previewSummary.textContent = summary;
+            } else {
+                previewSummary.classList.add('hidden');
+                previewSummary.textContent = '';
+            }
+
+            if (code.trim()) {
+                previewBlock.classList.remove('hidden');
+                previewEmpty.classList.add('hidden');
+                if (window.hljs) {
+                    hljs.highlightElement(previewCode);
+                }
+            } else {
+                previewBlock.classList.add('hidden');
+                previewEmpty.classList.remove('hidden');
+            }
+        };
+
+        let debounceId = null;
+        const schedulePreview = () => {
+            if (debounceId) {
+                clearTimeout(debounceId);
+            }
+            debounceId = setTimeout(updatePreview, 300);
+        };
+
+        const updateLanguageClass = () => {
+            if (!langSelect) return;
+            const selected = langSelect.options[langSelect.selectedIndex];
+            const hljsClass = selected?.dataset?.hljs || 'language-plaintext';
+            previewCode.className = hljsClass;
+            if (window.hljs) {
+                hljs.highlightElement(previewCode);
+            }
+        };
+
+        codeInput.addEventListener('input', schedulePreview);
+        if (summaryInput) summaryInput.addEventListener('input', schedulePreview);
+        if (langSelect) langSelect.addEventListener('change', updateLanguageClass);
+
+        updateLineNumbers(codeInput.value || '');
+
+        if (copyBtn && previewCode) {
+            copyBtn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(previewCode.textContent);
+                    copyBtn.textContent = 'Copiado!';
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copiar';
+                    }, 1200);
+                } catch (err) {
+                    copyBtn.textContent = 'Falhou';
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copiar';
+                    }, 1200);
+                }
+            });
+        }
+    })();
+</script>
+{% if origin_id %}
+    <div id="{{ origin_id }}" hx-swap-oob="outerHTML">
+        {% include "core/partials/solution_status_badge.html" with status=solution.status %}
+    </div>
+{% endif %}

@@ -1,0 +1,40 @@
+#train-page.train-hide-rating .train-rating-field {
+    display: none !important;
+}
+
+#train-page.train-hide-tags .train-tags-field {
+    display: none !important;
+}
+
+#train-page .train-rating-placeholder,
+#train-page .train-tags-placeholder {
+    display: none;
+}
+
+#train-page.train-hide-rating .train-rating-placeholder {
+    display: inline-flex;
+}
+
+#train-page.train-hide-tags .train-tags-placeholder {
+    display: block;
+}
+
+.train-blind-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(71, 85, 105, 0.9);
+    background: rgba(15, 23, 42, 0.72);
+    color: rgb(226, 232, 240);
+    padding: 0.35rem 0.75rem;
+    font-size: 0.72rem;
+    line-height: 1;
+    font-weight: 600;
+}
+
+.train-blind-toggle input {
+    height: 0.95rem;
+    width: 0.95rem;
+    accent-color: rgb(99, 102, 241);
+}

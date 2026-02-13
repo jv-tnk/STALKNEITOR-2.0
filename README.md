@@ -2,22 +2,87 @@
 
 Plataforma de monitoria e treinamento para programacao competitiva.
 
-## Setup rapido
+## Rodar localmente para testar (passo a passo)
 
-1. Configure o arquivo `.env` (veja o exemplo em `.env`).
-2. Suba os servicos de suporte:
-   - `docker compose up -d`
-3. Crie o venv e instale dependencias:
-   - `python3 -m venv venv`
-   - `source venv/bin/activate`
-   - `pip install -r requirements.txt`
-4. Rode as migracoes:
-   - `python manage.py migrate`
-5. Inicie os processos:
-   - `celery -A stalkineitor_project worker -l info -Q celery`
-   - `celery -A stalkineitor_project worker -l info -Q ratings -c 2`
-   - `celery -A stalkineitor_project beat -l info`
-   - `python manage.py runserver`
+### 1) Pre-requisitos
 
-O script `setup.sh` automatiza boa parte desse fluxo.
-# STALKNEITOR-2.1
+- Docker Engine 24+ (ou Docker Desktop)
+- Docker Compose v2 (`docker compose`)
+- Git
+
+Cheque rapido:
+
+```bash
+docker --version
+docker compose version
+git --version
+```
+
+### 2) Clonar o projeto
+
+```bash
+git clone https://github.com/jv-tnk/STALKNEITOR-2.0.git
+cd STALKNEITOR-2.0
+```
+
+### 3) Criar arquivo de ambiente
+
+```bash
+cp .env.example .env
+```
+
+No minimo, ajuste o `SECRET_KEY` em `.env`.
+
+Campos mais importantes:
+
+- `SECRET_KEY`: chave do Django
+- `ALLOWED_HOSTS`: hosts permitidos (local: `127.0.0.1,localhost`)
+- `CLIST_USERNAME` e `CLIST_API_KEY`: habilitam integracoes com clist (se nao preencher, essa parte fica limitada)
+- `DJANGO_SUPERUSER_*`: opcional, para criar admin automaticamente no primeiro boot
+
+### 4) Subir tudo com um comando
+
+```bash
+chmod +x stack-up.sh
+./stack-up.sh
+```
+
+Esse comando sobe:
+
+- `db` (PostgreSQL)
+- `redis`
+- `app-init` (migracoes + bootstrap opcional de superuser)
+- `web` (Django em `:8000`)
+- `worker` (Celery)
+- `beat` (agendador Celery)
+
+### 5) Acessar e validar
+
+- Aplicacao: `http://localhost:8000`
+- Login admin (se configurado no `.env`): use `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`
+
+Checagens uteis:
+
+```bash
+docker compose ps
+docker compose logs -f web
+docker compose logs -f worker beat
+```
+
+Se `worker` e `beat` estiverem ativos, os processos de sincronizacao automatica estao rodando.
+
+## Comandos do dia a dia
+
+- Subir stack: `./stack-up.sh`
+- Parar stack: `docker compose down`
+- Parar e remover volumes (limpa banco local): `docker compose down -v`
+- Reiniciar somente web: `docker compose restart web`
+- Rodar migracoes manualmente: `docker compose run --rm web python manage.py migrate`
+- Criar superuser manualmente: `docker compose run --rm web python manage.py createsuperuser`
+
+## Fluxo recomendado para atualizar do GitHub
+
+```bash
+git pull
+docker compose up --build -d
+```

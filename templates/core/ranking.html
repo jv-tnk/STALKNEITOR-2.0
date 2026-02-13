@@ -1,125 +1,550 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto space-y-6">
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-slate-100">Ranking</h1>
-            <p class="text-sm text-slate-400">Comparacao por pontos, janela e turma.</p>
-        </div>
-        <div class="flex items-center gap-2 text-xs text-slate-400">
-            <span class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1">
-                <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Atualizado diariamente
-            </span>
+<div class="relative space-y-6">
+    {% include "core/partials/welcome_tour_card.html" %}
+
+    <!-- Header -->
+    <div class="sticky top-0 z-30 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 backdrop-blur">
+        <div class="flex w-full flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-100">Ranking</h1>
+                <p id="ranking-subtitle" class="text-sm text-slate-400">{{ subtitle|default:"Pontos • Geral • Temporada" }}</p>
+                <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 p-1">
+                        <button type="button" data-source="overall" class="quick-source rounded-full px-3 py-1 text-xs {% if category == 'overall' %}bg-indigo-600 text-white{% else %}text-slate-300 hover:text-slate-100{% endif %}">Geral</button>
+                        <button type="button" data-source="cf" class="quick-source rounded-full px-3 py-1 text-xs {% if category == 'cf' %}bg-indigo-600 text-white{% else %}text-slate-300 hover:text-slate-100{% endif %}">CF</button>
+                        <button type="button" data-source="ac" class="quick-source rounded-full px-3 py-1 text-xs {% if category == 'ac' %}bg-indigo-600 text-white{% else %}text-slate-300 hover:text-slate-100{% endif %}">AC</button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 p-1">
+                        <button type="button" data-window="season" class="quick-window rounded-full px-3 py-1 text-xs {% if window == 'season' %}bg-slate-200 text-slate-900{% else %}text-slate-300 hover:text-slate-100{% endif %}">Temporada</button>
+                        <button type="button" data-window="7d" class="quick-window rounded-full px-3 py-1 text-xs {% if window == '7d' %}bg-slate-200 text-slate-900{% else %}text-slate-300 hover:text-slate-100{% endif %}">7d</button>
+                        <button type="button" data-window="30d" class="quick-window rounded-full px-3 py-1 text-xs {% if window == '30d' %}bg-slate-200 text-slate-900{% else %}text-slate-300 hover:text-slate-100{% endif %}">30d</button>
+                        <button type="button" data-window="all" class="quick-window rounded-full px-3 py-1 text-xs {% if window == 'all' %}bg-slate-200 text-slate-900{% else %}text-slate-300 hover:text-slate-100{% endif %}">All</button>
+                    </div>
+                    {% if seasons %}
+                    <div id="quick-season-wrap" class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-1 {% if window != 'season' %}hidden{% endif %}">
+                        <label for="quick-season-select" class="sr-only">Selecionar temporada por nome</label>
+                        <select id="quick-season-select" class="rounded-full border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100">
+                            {% for season in seasons %}
+                                <option value="{{ season.id }}" {% if selected_season and season.id == selected_season.id %}selected{% endif %}>
+                                    {% if season.name %}{{ season.name }}{% else %}Temporada #{{ season.id }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <label id="season-contest-only-wrap" class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200">
+                        <input
+                            id="season-contest-only-checkbox"
+                            type="checkbox"
+                            class="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                            {% if season_contest_only %}checked{% endif %}>
+                        <span>Só contar pontos de contests da temporada</span>
+                    </label>
+                </div>
+                <div id="filter-chips" class="mt-2 flex flex-wrap gap-2"></div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="relative hidden md:block">
+                    <input id="ranking-search" type="text" placeholder="Buscar aluno por nome/handle..." class="w-72 rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500">
+                    <button id="search-clear" type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">✕</button>
+                </div>
+                <button id="how-tab" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">
+                    Como funciona
+                </button>
+                <button id="filters-toggle" class="relative inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800">
+                    Filtros
+                    <span id="filters-count" class="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-600 text-[10px] font-semibold text-white">0</span>
+                </button>
+            </div>
         </div>
     </div>
 
-    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <div class="flex flex-col gap-4">
-            <div class="flex flex-col gap-2">
+    <!-- Drawer overlay -->
+    <div id="filters-overlay" class="fixed inset-0 z-40 hidden bg-slate-950/70"></div>
+
+    <!-- Drawer -->
+    <aside id="filters-drawer" class="fixed bottom-0 left-0 right-0 z-50 h-[70vh] translate-y-full rounded-t-2xl border border-slate-800 bg-slate-900 p-4 transition md:inset-y-0 md:h-full md:w-96 md:translate-y-0 md:-translate-x-full md:rounded-none md:border-r">
+        <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-200">Filtros</h2>
+            <button id="filters-close" class="text-slate-400 hover:text-slate-200">✕</button>
+        </div>
+
+        <form id="ranking-filters"
+              hx-get="{% url 'ranking_list' %}"
+              hx-target="#ranking-results"
+              hx-trigger="submit"
+              class="mt-4 space-y-5">
+            <input type="hidden" name="mode" id="modeInput" value="{{ mode }}">
+            <input type="hidden" name="source" id="sourceInput" value="{{ category }}">
+            <input type="hidden" name="window" id="windowInput" value="{{ window }}">
+            <input type="hidden" name="q" id="searchInput" value="">
+            <input type="hidden" name="start_date" id="startDateInput" value="">
+            <input type="hidden" name="end_date" id="endDateInput" value="">
+            <input type="hidden" name="movers_only" id="moversInput" value="0">
+            <input type="hidden" name="only_with_rating" id="ratingOnlyInput" value="0">
+            <input type="hidden" name="min_solves" id="minSolvesInput" value="">
+            <input type="hidden" name="order_by" id="orderByInput" value="score">
+            <input type="hidden" name="page" id="pageInput" value="1">
+            <input type="hidden" name="per_page" id="perPageInput" value="25">
+            <input type="hidden" name="season_id" id="seasonIdInput" value="{{ season_id|default:'' }}">
+            <input type="hidden" name="season_contest_only" id="seasonContestOnlyInput" value="{% if season_contest_only %}1{% else %}0{% endif %}">
+
+            <div>
+                <div class="block md:hidden mb-4">
+                    <label class="text-xs text-slate-400">Buscar</label>
+                    <input id="ranking-search-mobile" type="text" placeholder="Buscar aluno..." class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                </div>
                 <span class="text-[11px] uppercase tracking-wide text-slate-500">Modo</span>
-                <div id="ranking-modes" class="flex flex-wrap gap-2">
-                    <button type="button" data-mode="points" class="mode-btn px-4 py-2 rounded-full border text-sm transition
-                        {% if mode == 'points' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
-                        Pontos
-                    </button>
-                    <button type="button" data-mode="rating" class="mode-btn px-4 py-2 rounded-full border text-sm transition
-                        {% if mode == 'rating' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
-                        Rating
-                    </button>
-                    <button type="button" data-mode="activity" class="mode-btn px-4 py-2 rounded-full border text-sm transition
-                        {% if mode == 'activity' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
-                        Atividade
-                    </button>
+                <div class="mt-2 flex gap-2">
+                    <button type="button" data-mode="points" class="mode-btn rounded-full border px-4 py-2 text-sm {% if mode == 'points' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">Pontos</button>
+                    <button type="button" data-mode="rating" class="mode-btn rounded-full border px-4 py-2 text-sm {% if mode == 'rating' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">Rating</button>
                 </div>
             </div>
 
-            <div class="flex flex-col gap-2">
+            <div>
                 <span class="text-[11px] uppercase tracking-wide text-slate-500">Fonte</span>
-                <div id="ranking-tabs" class="flex flex-wrap gap-2">
-                    <button type="button" data-category="overall" class="category-btn px-4 py-2 rounded-full border text-sm transition
-                        {% if category == 'overall' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
-                        Geral
-                    </button>
-                    <button type="button" data-category="cf" class="category-btn px-4 py-2 rounded-full border text-sm transition
-                        {% if category == 'cf' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
-                        Codeforces
-                    </button>
-                    <button type="button" data-category="ac" class="category-btn px-4 py-2 rounded-full border text-sm transition
-                        {% if category == 'ac' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800{% endif %}">
-                        AtCoder
-                    </button>
+                <div class="mt-2 flex flex-wrap gap-2">
+                    <button type="button" data-source="overall" class="source-btn rounded-full border px-4 py-2 text-sm {% if category == 'overall' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">Geral</button>
+                    <button type="button" data-source="cf" class="source-btn rounded-full border px-4 py-2 text-sm {% if category == 'cf' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">Codeforces</button>
+                    <button type="button" data-source="ac" class="source-btn rounded-full border px-4 py-2 text-sm {% if category == 'ac' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">AtCoder</button>
                 </div>
             </div>
 
-            <form id="ranking-filters"
-                  hx-get="{% url 'ranking_list' %}"
-                  hx-target="#ranking-list"
-                  hx-trigger="change"
-                  class="grid gap-3 md:grid-cols-3">
-                <input type="hidden" name="mode" id="modeInput" value="{{ mode }}">
-                <input type="hidden" name="category" id="categoryInput" value="{{ category }}">
-                <label class="text-xs text-slate-400">
-                    Escopo
-                    <select name="scope" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
-                        <option value="global" {% if scope == 'global' %}selected{% endif %}>Global</option>
-                        <option value="turma" {% if scope == 'turma' %}selected{% endif %}>Turma</option>
-                    </select>
-                </label>
-                <label class="text-xs text-slate-400">
-                    Turma
-                    <select name="turma_id" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
-                        <option value="">Todas</option>
-                        {% for turma in turmas %}
-                        <option value="{{ turma.id }}" {% if turma_id == turma.id %}selected{% endif %}>
-                            {{ turma.nome }} ({{ turma.semestre }})
-                        </option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label class="text-xs text-slate-400">
-                    Janela
-                    <select name="window" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
-                        <option value="season" {% if window == 'season' %}selected{% endif %}>Temporada (mes atual)</option>
-                        <option value="7d" {% if window == '7d' %}selected{% endif %}>Ultimos 7 dias</option>
-                        <option value="30d" {% if window == '30d' %}selected{% endif %}>Ultimos 30 dias</option>
-                        <option value="all" {% if window == 'all' %}selected{% endif %}>All-time</option>
-                    </select>
-                </label>
-            </form>
-        </div>
-    </div>
+            <div>
+                <span class="text-[11px] uppercase tracking-wide text-slate-500">Período</span>
+                <div class="mt-2 flex flex-wrap gap-2">
+                    <button type="button" data-window="season" class="window-btn rounded-full border px-3 py-1 text-xs {% if window == 'season' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">Temporada</button>
+                    <button type="button" data-window="7d" class="window-btn rounded-full border px-3 py-1 text-xs {% if window == '7d' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">7d</button>
+                    <button type="button" data-window="30d" class="window-btn rounded-full border px-3 py-1 text-xs {% if window == '30d' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">30d</button>
+                    <button type="button" data-window="all" class="window-btn rounded-full border px-3 py-1 text-xs {% if window == 'all' %}bg-indigo-600 border-indigo-500 text-white{% else %}bg-slate-900 border-slate-700 text-slate-300{% endif %}">All-time</button>
+                </div>
+                {% if seasons %}
+                <div class="mt-3">
+                    <label class="text-xs text-slate-400">
+                        Temporada (por nome)
+                        <select id="season-select" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                            {% for season in seasons %}
+                                <option value="{{ season.id }}" {% if selected_season and season.id == selected_season.id %}selected{% endif %}>
+                                    {% if season.name %}{{ season.name }}{% else %}Temporada #{{ season.id }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+                {% endif %}
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                    <label class="text-xs text-slate-400">
+                        De
+                        <input id="startDate" type="date" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                    </label>
+                    <label class="text-xs text-slate-400">
+                        Até
+                        <input id="endDate" type="date" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                    </label>
+                </div>
+                <button type="button" id="apply-range" class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs text-slate-200">Aplicar intervalo</button>
+            </div>
 
-    <div id="ranking-list">
-        {% include 'core/partials/ranking_list.html' %}
+            <details class="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2">
+                <summary class="cursor-pointer text-xs text-slate-400">Avançado</summary>
+                <div class="mt-3 space-y-3 text-xs text-slate-400">
+                    <label class="flex items-center justify-between">
+                        <span>Somente com rating</span>
+                        <input id="rating-only-toggle" type="checkbox" class="h-4 w-4">
+                    </label>
+                    <label class="flex items-center justify-between">
+                        <span>Mostrar apenas quem subiu</span>
+                        <input id="movers-toggle" type="checkbox" class="h-4 w-4">
+                    </label>
+                    <label class="flex items-center justify-between">
+                        <span>Mínimo de solves</span>
+                        <input id="min-solves" type="number" min="0" class="w-20 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100">
+                    </label>
+                    <label class="block">
+                        Ordenação
+                        <select id="order-by" class="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100">
+                            <option value="score">Score</option>
+                            <option value="delta">Delta</option>
+                            <option value="solves">Solves</option>
+                        </select>
+                    </label>
+                </div>
+            </details>
+
+            <div class="sticky bottom-0 mt-6 flex gap-2 bg-slate-900 pt-2">
+                <button type="button" id="filters-reset" class="w-1/2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs text-slate-200">Reset</button>
+                <button type="button" id="filters-apply" class="w-1/2 rounded-lg bg-indigo-600 px-4 py-2 text-xs text-white">Aplicar</button>
+            </div>
+        </form>
+    </aside>
+
+    <!-- Results -->
+    <div class="w-full">
+        <div id="ranking-results"
+             hx-get="{% url 'ranking_list' %}?mode={{ mode }}&source={{ category }}&window={{ window }}{% if season_id %}&season_id={{ season_id }}{% endif %}{% if season_contest_only %}&season_contest_only=1{% endif %}"
+             hx-trigger="load"
+             hx-target="#ranking-results"
+             hx-swap="innerHTML">
+        </div>
+
+        <div id="ranking-skeleton" class="hidden space-y-4">
+            <div class="grid gap-4 md:grid-cols-3">
+                <div class="h-24 rounded-xl bg-slate-800/50 animate-pulse"></div>
+                <div class="h-24 rounded-xl bg-slate-800/50 animate-pulse"></div>
+                <div class="h-24 rounded-xl bg-slate-800/50 animate-pulse"></div>
+            </div>
+            <div class="h-48 rounded-xl bg-slate-800/50 animate-pulse"></div>
+        </div>
+
+        <div id="ranking-error" class="hidden rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            Não foi possível carregar. <button id="retry-ranking" class="underline">Tentar novamente</button>
+        </div>
     </div>
 </div>
 
 <script>
-    const activateButtons = (buttons, active) => {
-        buttons.forEach(btn => {
-            btn.classList.remove('bg-indigo-600', 'border-indigo-500', 'text-white');
-            btn.classList.add('bg-slate-900', 'border-slate-700', 'text-slate-300');
-        });
-        active.classList.add('bg-indigo-600', 'border-indigo-500', 'text-white');
-        active.classList.remove('bg-slate-900', 'border-slate-700', 'text-slate-300');
+    const drawer = document.getElementById('filters-drawer');
+    const overlay = document.getElementById('filters-overlay');
+    const toggle = document.getElementById('filters-toggle');
+    const closeBtn = document.getElementById('filters-close');
+    const applyBtn = document.getElementById('filters-apply');
+    const resetBtn = document.getElementById('filters-reset');
+    const rangeBtn = document.getElementById('apply-range');
+    const modeButtons = document.querySelectorAll('.mode-btn');
+    const sourceButtons = document.querySelectorAll('.source-btn');
+    const windowButtons = document.querySelectorAll('.window-btn');
+    const quickSourceButtons = document.querySelectorAll('.quick-source');
+    const quickWindowButtons = document.querySelectorAll('.quick-window');
+    const searchInput = document.getElementById('ranking-search');
+    const searchMobile = document.getElementById('ranking-search-mobile');
+    const searchClear = document.getElementById('search-clear');
+    const filtersForm = document.getElementById('ranking-filters');
+    const filtersCount = document.getElementById('filters-count');
+    const skeleton = document.getElementById('ranking-skeleton');
+    const errorBox = document.getElementById('ranking-error');
+    const howTab = document.getElementById('how-tab');
+    const seasonSelect = document.getElementById('season-select');
+    const quickSeasonWrap = document.getElementById('quick-season-wrap');
+    const quickSeasonSelect = document.getElementById('quick-season-select');
+    const seasonIdInput = document.getElementById('seasonIdInput');
+    const modeInput = document.getElementById('modeInput');
+    const seasonContestOnlyInput = document.getElementById('seasonContestOnlyInput');
+    const seasonContestOnlyCheckbox = document.getElementById('season-contest-only-checkbox');
+    const seasonContestOnlyWrap = document.getElementById('season-contest-only-wrap');
+
+    let lastNonHowMode = modeInput?.value && modeInput.value !== 'how' ? modeInput.value : 'points';
+
+    const openDrawer = () => {
+        overlay.classList.remove('hidden');
+        drawer.classList.remove('translate-y-full', 'md:-translate-x-full');
+        document.getElementById('movers-toggle').checked = document.getElementById('moversInput').value === '1';
+        document.getElementById('rating-only-toggle').checked = document.getElementById('ratingOnlyInput').value === '1';
+        document.getElementById('min-solves').value = document.getElementById('minSolvesInput').value || '';
+        document.getElementById('order-by').value = document.getElementById('orderByInput').value || 'score';
+        setActive(modeButtons, document.getElementById('modeInput').value, 'modeInput', 'mode');
+        setActive(sourceButtons, document.getElementById('sourceInput').value, 'sourceInput', 'source');
+        setActive(windowButtons, document.getElementById('windowInput').value, 'windowInput', 'window');
+        if (seasonSelect && seasonIdInput && seasonIdInput.value) {
+            seasonSelect.value = seasonIdInput.value;
+        }
+    };
+    const closeDrawer = () => {
+        overlay.classList.add('hidden');
+        drawer.classList.add('translate-y-full', 'md:-translate-x-full');
     };
 
-    document.querySelectorAll('.category-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.getElementById('categoryInput').value = btn.dataset.category;
-            htmx.trigger('#ranking-filters', 'change');
-            activateButtons(document.querySelectorAll('.category-btn'), btn);
+    const syncSeasonContestOnlyControl = () => {
+        const isPointsMode = (modeInput?.value || 'points') === 'points';
+        if (seasonContestOnlyCheckbox) {
+            seasonContestOnlyCheckbox.disabled = !isPointsMode;
+        }
+        if (seasonContestOnlyWrap) {
+            seasonContestOnlyWrap.classList.toggle('opacity-50', !isPointsMode);
+            seasonContestOnlyWrap.classList.toggle('cursor-not-allowed', !isPointsMode);
+        }
+    };
+
+    toggle?.addEventListener('click', openDrawer);
+    closeBtn?.addEventListener('click', closeDrawer);
+    overlay?.addEventListener('click', closeDrawer);
+
+    const setActive = (buttons, value, inputId, datasetKey) => {
+        buttons.forEach(btn => {
+            if (btn.dataset[datasetKey] === value) {
+                btn.classList.add('bg-indigo-600', 'border-indigo-500', 'text-white');
+                btn.classList.remove('bg-slate-900', 'border-slate-700', 'text-slate-300');
+            } else {
+                btn.classList.remove('bg-indigo-600', 'border-indigo-500', 'text-white');
+                btn.classList.add('bg-slate-900', 'border-slate-700', 'text-slate-300');
+            }
         });
+        document.getElementById(inputId).value = value;
+    };
+
+    const setQuickActive = (buttons, value) => {
+        buttons.forEach(btn => {
+            if (btn.dataset.source && btn.dataset.source === value) {
+                btn.classList.add('bg-indigo-600', 'text-white');
+                btn.classList.remove('text-slate-300');
+            } else if (btn.dataset.window && btn.dataset.window === value) {
+                btn.classList.add('bg-slate-200', 'text-slate-900');
+                btn.classList.remove('text-slate-300');
+            } else {
+                btn.classList.remove('bg-indigo-600', 'text-white', 'bg-slate-200', 'text-slate-900');
+                btn.classList.add('text-slate-300');
+            }
+        });
+    };
+
+    const updateSource = (value) => {
+        setActive(sourceButtons, value, 'sourceInput', 'source');
+        setQuickActive(quickSourceButtons, value);
+    };
+
+    const updateWindow = (value) => {
+        setActive(windowButtons, value, 'windowInput', 'window');
+        setQuickActive(quickWindowButtons, value);
+        document.getElementById('startDateInput').value = '';
+        document.getElementById('endDateInput').value = '';
+        if (quickSeasonWrap) {
+            quickSeasonWrap.classList.toggle('hidden', value !== 'season');
+        }
+        if (value === 'season' && seasonSelect && seasonIdInput && !seasonIdInput.value) {
+            seasonIdInput.value = seasonSelect.value || '';
+        }
+    };
+
+    modeButtons.forEach(btn => btn.addEventListener('click', () => {
+        setActive(modeButtons, btn.dataset.mode, 'modeInput', 'mode');
+        if (btn.dataset.mode !== 'how') {
+            lastNonHowMode = btn.dataset.mode;
+        }
+        syncSeasonContestOnlyControl();
+    }));
+    sourceButtons.forEach(btn => btn.addEventListener('click', () => updateSource(btn.dataset.source)));
+    windowButtons.forEach(btn => btn.addEventListener('click', () => updateWindow(btn.dataset.window)));
+    quickSourceButtons.forEach(btn => btn.addEventListener('click', () => {
+        updateSource(btn.dataset.source);
+        htmx.trigger(filtersForm, 'submit');
+    }));
+    quickWindowButtons.forEach(btn => btn.addEventListener('click', () => {
+        updateWindow(btn.dataset.window);
+        htmx.trigger(filtersForm, 'submit');
+    }));
+
+    rangeBtn?.addEventListener('click', () => {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if (!start || !end) return;
+        document.getElementById('startDateInput').value = start;
+        document.getElementById('endDateInput').value = end;
+        document.getElementById('windowInput').value = 'custom';
     });
 
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.getElementById('modeInput').value = btn.dataset.mode;
-            htmx.trigger('#ranking-filters', 'change');
-            activateButtons(document.querySelectorAll('.mode-btn'), btn);
-        });
+    seasonSelect?.addEventListener('change', () => {
+        if (seasonIdInput) seasonIdInput.value = seasonSelect.value;
+        if (quickSeasonSelect) quickSeasonSelect.value = seasonSelect.value;
     });
+
+    quickSeasonSelect?.addEventListener('change', () => {
+        if (seasonIdInput) seasonIdInput.value = quickSeasonSelect.value;
+        if (seasonSelect) seasonSelect.value = quickSeasonSelect.value;
+        updateWindow('season');
+        htmx.trigger(filtersForm, 'submit');
+    });
+
+    seasonContestOnlyCheckbox?.addEventListener('change', () => {
+        if (seasonContestOnlyInput) {
+            seasonContestOnlyInput.value = seasonContestOnlyCheckbox.checked ? '1' : '0';
+        }
+        htmx.trigger(filtersForm, 'submit');
+    });
+
+    applyBtn?.addEventListener('click', () => {
+        document.getElementById('moversInput').value = document.getElementById('movers-toggle').checked ? '1' : '0';
+        document.getElementById('ratingOnlyInput').value = document.getElementById('rating-only-toggle').checked ? '1' : '0';
+        document.getElementById('minSolvesInput').value = document.getElementById('min-solves').value;
+        document.getElementById('orderByInput').value = document.getElementById('order-by').value;
+        if (seasonSelect && seasonIdInput) {
+            seasonIdInput.value = seasonSelect.value;
+        }
+        htmx.trigger(filtersForm, 'submit');
+        closeDrawer();
+    });
+
+    resetBtn?.addEventListener('click', () => {
+        document.getElementById('modeInput').value = 'points';
+        document.getElementById('sourceInput').value = 'overall';
+        document.getElementById('windowInput').value = 'season';
+        document.getElementById('startDateInput').value = '';
+        document.getElementById('endDateInput').value = '';
+        document.getElementById('moversInput').value = '0';
+        document.getElementById('ratingOnlyInput').value = '0';
+        document.getElementById('minSolvesInput').value = '';
+        document.getElementById('orderByInput').value = 'score';
+        document.getElementById('min-solves').value = '';
+        document.getElementById('movers-toggle').checked = false;
+        document.getElementById('rating-only-toggle').checked = false;
+        if (seasonContestOnlyInput) {
+            seasonContestOnlyInput.value = '0';
+        }
+        if (seasonContestOnlyCheckbox) {
+            seasonContestOnlyCheckbox.checked = false;
+        }
+        setActive(modeButtons, 'points', 'modeInput', 'mode');
+        updateSource('overall');
+        updateWindow('season');
+        syncSeasonContestOnlyControl();
+        if (seasonSelect && seasonIdInput) {
+            seasonIdInput.value = seasonSelect.value || '';
+        }
+        htmx.trigger(filtersForm, 'submit');
+        closeDrawer();
+    });
+
+    let debounceId = null;
+    const triggerSearch = () => {
+        if (debounceId) clearTimeout(debounceId);
+        debounceId = setTimeout(() => {
+            document.getElementById('searchInput').value = searchInput.value;
+            htmx.trigger(filtersForm, 'submit');
+        }, 300);
+    };
+    searchInput?.addEventListener('input', triggerSearch);
+    searchMobile?.addEventListener('input', triggerSearch);
+    searchClear?.addEventListener('click', () => {
+        searchInput.value = '';
+        if (searchMobile) searchMobile.value = '';
+        document.getElementById('searchInput').value = '';
+        htmx.trigger(filtersForm, 'submit');
+    });
+
+    howTab?.addEventListener('click', () => {
+        if (modeInput.value !== 'how') {
+            lastNonHowMode = modeInput.value || 'points';
+        }
+        document.getElementById('modeInput').value = 'how';
+        syncSeasonContestOnlyControl();
+        htmx.trigger(filtersForm, 'submit');
+    });
+
+    document.body.addEventListener('htmx:beforeRequest', (evt) => {
+        if (evt.target.id === 'ranking-results') {
+            skeleton.classList.remove('hidden');
+            errorBox.classList.add('hidden');
+        }
+    });
+    document.body.addEventListener('htmx:afterSwap', (evt) => {
+        if (evt.target.id === 'ranking-results') {
+            skeleton.classList.add('hidden');
+            errorBox.classList.add('hidden');
+            const state = document.getElementById('ranking-search-state');
+            if (state) {
+                const value = state.dataset.q || '';
+                if (searchInput) searchInput.value = value;
+                if (searchMobile) searchMobile.value = value;
+                document.getElementById('searchInput').value = value;
+            }
+            if (seasonSelect && seasonIdInput && seasonIdInput.value) {
+                seasonSelect.value = seasonIdInput.value;
+            }
+            if (quickSeasonSelect && seasonIdInput && seasonIdInput.value) {
+                quickSeasonSelect.value = seasonIdInput.value;
+            }
+            if (seasonContestOnlyCheckbox && seasonContestOnlyInput) {
+                seasonContestOnlyCheckbox.checked = seasonContestOnlyInput.value === '1';
+            }
+            syncSeasonContestOnlyControl();
+        }
+    });
+    document.body.addEventListener('htmx:responseError', (evt) => {
+        if (evt.target.id === 'ranking-results') {
+            skeleton.classList.add('hidden');
+            errorBox.classList.remove('hidden');
+        }
+    });
+    document.getElementById('retry-ranking')?.addEventListener('click', () => {
+        htmx.trigger(filtersForm, 'submit');
+    });
+
+    document.body.addEventListener('click', (evt) => {
+        const chip = evt.target.closest('.chip-btn');
+        if (chip) {
+            const key = chip.dataset.key;
+            const value = chip.dataset.value;
+            if (key === 'mode') {
+                document.getElementById('modeInput').value = value;
+                setActive(modeButtons, value, 'modeInput', 'mode');
+                if (value !== 'how') {
+                    lastNonHowMode = value;
+                }
+            } else if (key === 'source') {
+                updateSource(value);
+            } else if (key === 'window') {
+                updateWindow(value);
+            } else if (key === 'q') {
+                document.getElementById('searchInput').value = value;
+                if (searchInput) searchInput.value = value;
+                if (searchMobile) searchMobile.value = value;
+            } else if (key === 'season_contest_only') {
+                if (seasonContestOnlyInput) {
+                    seasonContestOnlyInput.value = value;
+                }
+                if (seasonContestOnlyCheckbox) {
+                    seasonContestOnlyCheckbox.checked = value === '1';
+                }
+            } else if (key === 'movers_only') {
+                document.getElementById('moversInput').value = value;
+            } else if (key === 'only_with_rating') {
+                document.getElementById('ratingOnlyInput').value = value;
+            } else if (key === 'min_solves') {
+                document.getElementById('minSolvesInput').value = value;
+                document.getElementById('min-solves').value = value;
+            } else if (key === 'order_by') {
+                document.getElementById('orderByInput').value = value;
+                document.getElementById('order-by').value = value;
+            }
+            htmx.trigger(filtersForm, 'submit');
+        }
+
+        const movers = evt.target.closest('[data-apply-movers]');
+        if (movers) {
+            document.getElementById('moversInput').value = '1';
+            updateWindow('7d');
+            htmx.trigger(filtersForm, 'submit');
+        }
+
+        const pageBtn = evt.target.closest('[data-page]');
+        if (pageBtn) {
+            document.getElementById('pageInput').value = pageBtn.dataset.page;
+            htmx.trigger(filtersForm, 'submit');
+        }
+
+        const howBackBtn = evt.target.closest('[data-how-back]');
+        if (howBackBtn) {
+            const targetMode = howBackBtn.dataset.mode || lastNonHowMode || 'points';
+            document.getElementById('modeInput').value = targetMode;
+            setActive(modeButtons, targetMode, 'modeInput', 'mode');
+            syncSeasonContestOnlyControl();
+            htmx.trigger(filtersForm, 'submit');
+        }
+
+        const resetBtnInline = evt.target.closest('[data-reset-filters]');
+        if (resetBtnInline) {
+            resetBtn.click();
+        }
+
+        const clearSearch = evt.target.closest('[data-clear-search]');
+        if (clearSearch) {
+            if (searchInput) searchInput.value = '';
+            if (searchMobile) searchMobile.value = '';
+            document.getElementById('searchInput').value = '';
+            htmx.trigger(filtersForm, 'submit');
+        }
+    });
+
+    syncSeasonContestOnlyControl();
 </script>
 {% endblock %}

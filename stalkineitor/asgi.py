@@ -1,1 +1,0 @@
-from stalkineitor_project.asgi import application

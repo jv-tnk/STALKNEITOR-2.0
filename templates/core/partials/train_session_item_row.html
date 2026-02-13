@@ -1,0 +1,192 @@
+<div id="item-{{ item.id }}" class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+    <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[10px] font-semibold text-slate-200">{{ item.platform }}</span>
+                <span class="train-rating-field rating-pill px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                      style="--rating-color: {{ item.rating_color }}; --rating-fill: {{ item.rating_fill }}%; --rating-text: {{ item.rating_text }};">
+                    <span>Rating {{ item.rating_label }}</span>
+                </span>
+                <span class="train-rating-placeholder rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-300">
+                    Dificuldade oculta
+                </span>
+
+                {% if item.result == "SOLVED" %}
+                    <span class="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-100">
+                        <svg viewBox="0 0 24 24" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M20 6L9 17l-5-5"></path>
+                        </svg>
+                        Resolvi
+                    </span>
+                {% elif item.result == "EDITORIAL" %}
+                    <span class="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-100">
+                        <svg viewBox="0 0 24 24" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 5h13a2 2 0 0 1 2 2v12H6a2 2 0 0 0-2 2V5z"></path>
+                            <path d="M6 5v14"></path>
+                        </svg>
+                        Editorial
+                    </span>
+                {% elif item.result == "STUCK" %}
+                    <span class="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-100">
+                        <svg viewBox="0 0 24 24" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M18 6L6 18"></path>
+                            <path d="M6 6l12 12"></path>
+                        </svg>
+                        Travei
+                    </span>
+                {% elif item.result == "SKIPPED" %}
+                    <span class="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-2 py-0.5 text-[10px] font-semibold text-slate-200">
+                        <svg viewBox="0 0 24 24" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14"></path>
+                            <path d="M13 6l6 6-6 6"></path>
+                        </svg>
+                        Adiei
+                    </span>
+                {% elif item.result == "BLOCKED" %}
+                    <span class="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-100">
+                        <svg viewBox="0 0 24 24" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9"></circle>
+                            <path d="M6 18L18 6"></path>
+                        </svg>
+                        Bloqueado
+                    </span>
+                {% else %}
+                    <span class="rounded-full border border-slate-700 bg-slate-900/50 px-2 py-0.5 text-[10px] font-semibold text-slate-200">Todo</span>
+                {% endif %}
+            </div>
+
+            <a href="{{ item.problem_url }}" target="_blank"
+               class="mt-2 block truncate text-base font-semibold text-slate-100 hover:text-emerald-300">
+                {% if item.index_label %}{{ item.index_label }} — {% endif %}{{ item.title|default:item.problem_url }}
+            </a>
+
+            {% if item.tags_list %}
+                <div class="train-tags-field mt-2 flex flex-wrap gap-2">
+                    {% for tag in item.tags_list %}
+                        <span class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-0.5 text-[10px] text-slate-200">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                <div class="train-tags-placeholder mt-2 text-[11px] text-slate-500">Tags ocultas</div>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-col gap-2 md:items-end">
+            <a href="{{ item.problem_url }}" target="_blank"
+               class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                Abrir
+            </a>
+
+            {% if session.is_active %}
+                <form class="flex flex-col gap-2 md:items-end"
+                      hx-post="{% url 'train_session_item_result' session.id item.id %}"
+                      hx-target="#item-{{ item.id }}"
+                      hx-swap="outerHTML">
+                    <div class="flex items-center gap-2">
+                        <label class="text-[11px] text-slate-500" for="stuck-reason-{{ item.id }}">Motivo</label>
+                        <select id="stuck-reason-{{ item.id }}" name="stuck_reason"
+                                class="rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1 text-xs text-slate-100">
+                            <option value="idea" {% if item.stuck_reason == "idea" %}selected{% endif %}>Ideia</option>
+                            <option value="implementation" {% if item.stuck_reason == "implementation" %}selected{% endif %}>Implementação</option>
+                            <option value="math" {% if item.stuck_reason == "math" %}selected{% endif %}>Math</option>
+                            <option value="reading" {% if item.stuck_reason == "reading" %}selected{% endif %}>Leitura</option>
+                            <option value="edge_cases" {% if item.stuck_reason == "edge_cases" %}selected{% endif %}>Edge cases</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-wrap justify-end gap-2">
+                        <button type="submit" name="result" value="SOLVED"
+                                class="inline-flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25">
+                            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M20 6L9 17l-5-5"></path>
+                            </svg>
+                            Resolvi
+                        </button>
+                        <button type="submit" name="result" value="EDITORIAL"
+                                class="inline-flex items-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-500/20">
+                            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M4 5h13a2 2 0 0 1 2 2v12H6a2 2 0 0 0-2 2V5z"></path>
+                                <path d="M6 5v14"></path>
+                            </svg>
+                            Editorial
+                        </button>
+                        <button type="submit" name="result" value="STUCK"
+                                class="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/20">
+                            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M18 6L6 18"></path>
+                                <path d="M6 6l12 12"></path>
+                            </svg>
+                            Travei
+                        </button>
+                        <button type="submit" name="result" value="SKIPPED"
+                                class="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M5 12h14"></path>
+                                <path d="M13 6l6 6-6 6"></path>
+                            </svg>
+                            Adiar
+                        </button>
+                        <button type="submit" name="result" value="BLOCKED"
+                                class="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 hover:bg-rose-500/20">
+                            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9"></circle>
+                                <path d="M6 18L18 6"></path>
+                            </svg>
+                            Bloquear
+                        </button>
+                    </div>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if request.htmx %}
+<div id="train-session-stats"
+     data-total="{{ total }}"
+     data-done="{{ done }}"
+     data-expected-total="{{ expected_total }}"
+     data-expected-done="{{ expected_done }}"
+     class="hidden"
+     hx-swap-oob="true"></div>
+<div id="session-progress" hx-swap-oob="innerHTML">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+            <div class="text-xs uppercase tracking-wide text-slate-500">Progresso</div>
+            <div class="mt-1 text-lg font-semibold text-slate-100">{{ done }}/{{ total }} concluídos</div>
+            <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
+                <span class="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                    <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 6L9 17l-5-5"></path>
+                    </svg>
+                    {{ solved }}
+                </span>
+                <span class="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-sky-100">
+                    <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h13a2 2 0 0 1 2 2v12H6a2 2 0 0 0-2 2V5z"></path>
+                        <path d="M6 5v14"></path>
+                    </svg>
+                    {{ editorial }}
+                </span>
+                <span class="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-rose-100">
+                    <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M18 6L6 18"></path>
+                        <path d="M6 6l12 12"></path>
+                    </svg>
+                    {{ stuck }}
+                </span>
+            </div>
+        </div>
+        <div class="w-full md:w-72">
+            {% if total > 0 %}
+                {% widthratio done total 100 as pct %}
+            {% else %}
+                {% widthratio 0 1 100 as pct %}
+            {% endif %}
+            <div class="h-3 w-full overflow-hidden rounded-full bg-slate-800">
+                <div class="h-full bg-emerald-500/70" style="width: {{ pct }}%;"></div>
+            </div>
+            <div class="mt-1 text-right text-xs text-slate-500">{{ pct }}%</div>
+        </div>
+    </div>
+</div>
+{% endif %}

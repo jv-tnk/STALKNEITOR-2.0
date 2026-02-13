@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="space-y-6">
+    {% include "core/partials/welcome_tour_card.html" %}
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
+        <div class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-500/30 bg-indigo-500/10 text-xl font-bold text-indigo-100">
+                    {{ student.user.username|slice:":1"|upper }}
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-100">{{ student.user.username }}</h1>
+                    <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                        <span id="profile-handle-chips" class="inline-flex flex-wrap items-center gap-2">
+                            {% include "core/partials/profile_handle_chips.html" %}
+                        </span>
+                        {% if last_solve %}
+                            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1">
+                                Último solve: <span class="text-slate-200">{{ last_solve|date:"d/m/Y H:i" }}</span>
+                            </span>
+                        {% endif %}
+                    </div>
+                    {% if season_badges %}
+                        <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
+                            {% for badge in season_badges %}
+                                {% if badge.rank == 1 %}
+                                    <span class="rounded-full border border-amber-400/50 bg-amber-500/15 px-3 py-1 font-semibold text-amber-100">
+                                        Ouro • {{ badge.season_label }}
+                                    </span>
+                                {% elif badge.rank == 2 %}
+                                    <span class="rounded-full border border-slate-300/50 bg-slate-200/10 px-3 py-1 font-semibold text-slate-200">
+                                        Prata • {{ badge.season_label }}
+                                    </span>
+                                {% else %}
+                                    <span class="rounded-full border border-orange-400/50 bg-orange-500/10 px-3 py-1 font-semibold text-orange-200">
+                                        Bronze • {{ badge.season_label }}
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="text-xs text-slate-500">Rating oficial</div>
+                        {% if is_owner or request.user.is_staff %}
+                            <button type="button"
+                                    hx-post="{% url 'refresh_user_ratings' student.user.username %}"
+                                    hx-target="#profile-rating-refresh-status-global"
+                                    hx-swap="innerHTML"
+                                    class="rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 py-1 text-[11px] font-semibold text-slate-100 hover:bg-slate-800">
+                                Atualizar
+                            </button>
+                        {% endif %}
+                    </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                        <span class="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-red-100">
+                            CF {{ student.cf_rating_current|default:"-" }}
+                        </span>
+                        <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-amber-100">
+                            AC {{ student.ac_rating_current|default:"-" }}
+                        </span>
+                    </div>
+                    <div class="mt-2 text-[11px] text-slate-500">
+                        Max CF {{ student.cf_rating_max|default:"-" }} · Max AC {{ student.ac_rating_max|default:"-" }}
+                    </div>
+                    {% if is_owner or request.user.is_staff %}
+                        <div id="profile-rating-refresh-status-global" class="mt-3 text-xs text-slate-400"></div>
+                    {% endif %}
+                </div>
+                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="text-xs text-slate-500">First AC (total)</div>
+                    <div class="mt-2 text-3xl font-bold text-slate-100">{{ total_solves }}</div>
+                    <div class="mt-2 text-[11px] text-slate-500">
+                        Temporada: {% if active_season %}{{ season_start }} → {{ season_end }}{% else %}mês atual{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+        <div class="flex flex-wrap gap-2">
+            <button type="button"
+                    class="profile-tab rounded-full border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    data-tab="overview"
+                    hx-get="{% url 'user_profile_tab' student.user.username 'overview' %}"
+                    hx-target="#profile-tab-content"
+                    hx-swap="innerHTML">
+                Visão geral
+            </button>
+            <button type="button"
+                    class="profile-tab rounded-full border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    data-tab="activity"
+                    hx-get="{% url 'user_profile_tab' student.user.username 'activity' %}"
+                    hx-target="#profile-tab-content"
+                    hx-swap="innerHTML">
+                Atividade
+            </button>
+            <button type="button"
+                    class="profile-tab rounded-full border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    data-tab="tags"
+                    hx-get="{% url 'user_profile_tab' student.user.username 'tags' %}?period=all"
+                    hx-target="#profile-tab-content"
+                    hx-swap="innerHTML">
+                Tags & tópicos
+            </button>
+            <button type="button"
+                    class="profile-tab rounded-full border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    data-tab="visualizer_cf"
+                    hx-get="{% url 'user_profile_tab' student.user.username 'visualizer_cf' %}"
+                    hx-target="#profile-tab-content"
+                    hx-swap="innerHTML">
+                Visualizer (CF)
+            </button>
+            <button type="button"
+                    class="profile-tab rounded-full border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    data-tab="visualizer_ac"
+                    hx-get="{% url 'user_profile_tab' student.user.username 'visualizer_ac' %}"
+                    hx-target="#profile-tab-content"
+                    hx-swap="innerHTML">
+                Visualizer (AC)
+            </button>
+            {% if is_owner %}
+                <button type="button"
+                        class="profile-tab rounded-full border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                        data-tab="settings"
+                        hx-get="{% url 'user_profile_tab' student.user.username 'settings' %}"
+                        hx-target="#profile-tab-content"
+                        hx-swap="innerHTML">
+                    Minha conta
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="profile-tab-content"
+         class="space-y-6"
+         hx-get="{{ initial_tab_url }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    </div>
+</section>
+
+<script>
+    const profileTabs = document.querySelectorAll('.profile-tab');
+    const setActiveProfileTab = (tabName) => {
+        profileTabs.forEach((btn) => {
+            const isActive = btn.dataset.tab === tabName;
+            btn.classList.toggle('bg-indigo-600', isActive);
+            btn.classList.toggle('border-indigo-500/60', isActive);
+            btn.classList.toggle('text-white', isActive);
+            btn.classList.toggle('bg-slate-900/60', !isActive);
+            btn.classList.toggle('border-slate-700', !isActive);
+            btn.classList.toggle('text-slate-200', !isActive);
+        });
+    };
+
+    profileTabs.forEach((btn) => {
+        btn.addEventListener('click', () => setActiveProfileTab(btn.dataset.tab));
+    });
+    // Default tab
+    setActiveProfileTab('{{ initial_tab }}');
+</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+<div id="profile-activity-panel" class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 space-y-4">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-100">Heatmap de atividade</h2>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900/60 p-1 text-xs">
+                <button type="button" class="hm-platform rounded-full px-3 py-1 text-slate-200 hover:text-white" data-platform="all">Geral</button>
+                <button type="button" class="hm-platform rounded-full px-3 py-1 text-slate-200 hover:text-white" data-platform="CF">CF</button>
+                <button type="button" class="hm-platform rounded-full px-3 py-1 text-slate-200 hover:text-white" data-platform="AC">AC</button>
+            </div>
+            <div class="flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900/60 p-1 text-xs">
+                <button type="button" class="hm-metric rounded-full px-3 py-1 text-slate-200 hover:text-white" data-metric="first_ac">Primeiro AC</button>
+                <button type="button" class="hm-metric rounded-full px-3 py-1 text-slate-200 hover:text-white" data-metric="submissions">Submissões</button>
+                <button type="button" class="hm-metric rounded-full px-3 py-1 text-slate-200 hover:text-white" data-metric="points">Pontos</button>
+            </div>
+            <div class="flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900/60 p-1 text-xs">
+                <button type="button" class="hm-range rounded-full px-3 py-1 text-slate-200 hover:text-white" data-range="90d">90d</button>
+                <button type="button" class="hm-range rounded-full px-3 py-1 text-slate-200 hover:text-white" data-range="180d">180d</button>
+                <button type="button" class="hm-range rounded-full px-3 py-1 text-slate-200 hover:text-white" data-range="365d">365d</button>
+                <button type="button" class="hm-range rounded-full px-3 py-1 text-slate-200 hover:text-white" data-range="season">Temporada</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="hidden" id="hm-platform" value="all">
+    <input type="hidden" id="hm-metric" value="first_ac">
+    <input type="hidden" id="hm-range" value="180d">
+
+    <div id="profile-heatmap"
+         hx-get="{% url 'user_profile_heatmap' student.user.username %}?platform=all&metric=first_ac&range=180d"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="h-24 rounded-xl bg-slate-800/50 animate-pulse"></div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const panel = document.getElementById('profile-activity-panel');
+    if (!panel) return;
+
+    const hmTarget = panel.querySelector('#profile-heatmap');
+    const hmPlatform = panel.querySelector('#hm-platform');
+    const hmMetric = panel.querySelector('#hm-metric');
+    const hmRange = panel.querySelector('#hm-range');
+    if (!hmTarget || !hmPlatform || !hmMetric || !hmRange) return;
+
+    const setActive = (selector, value) => {
+        panel.querySelectorAll(selector).forEach((btn) => {
+            const isActive = (btn.dataset.platform === value) || (btn.dataset.metric === value) || (btn.dataset.range === value);
+            btn.classList.toggle('bg-indigo-600', isActive);
+            btn.classList.toggle('text-white', isActive);
+            btn.classList.toggle('text-slate-200', !isActive);
+        });
+    };
+
+    const reloadHeatmap = () => {
+        const platform = hmPlatform.value;
+        const metric = hmMetric.value;
+        const range = hmRange.value;
+        const url = `{% url 'user_profile_heatmap' student.user.username %}?platform=${encodeURIComponent(platform)}&metric=${encodeURIComponent(metric)}&range=${encodeURIComponent(range)}`;
+        htmx.ajax('GET', url, { target: hmTarget, swap: 'innerHTML' });
+    };
+
+    panel.querySelectorAll('.hm-platform').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            hmPlatform.value = btn.dataset.platform || 'all';
+            setActive('.hm-platform', hmPlatform.value);
+            reloadHeatmap();
+        });
+    });
+    panel.querySelectorAll('.hm-metric').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            hmMetric.value = btn.dataset.metric || 'first_ac';
+            setActive('.hm-metric', hmMetric.value);
+            reloadHeatmap();
+        });
+    });
+    panel.querySelectorAll('.hm-range').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            hmRange.value = btn.dataset.range || '180d';
+            setActive('.hm-range', hmRange.value);
+            reloadHeatmap();
+        });
+    });
+
+    setActive('.hm-platform', hmPlatform.value);
+    setActive('.hm-metric', hmMetric.value);
+    setActive('.hm-range', hmRange.value);
+})();
+</script>

@@ -1,0 +1,259 @@
+<div class="space-y-6">
+    <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-100">AtCoder Visualizer</h2>
+                <p class="text-xs text-slate-400">Snapshots de rating + distribuição de solves do AtCoder.</p>
+            </div>
+            {% if student.handle_atcoder %}
+                <a href="https://atcoder.jp/users/{{ student.handle_atcoder }}" target="_blank" class="text-xs text-emerald-300 hover:text-emerald-200 underline underline-offset-4">Abrir perfil no AtCoder</a>
+            {% endif %}
+        </div>
+
+        {% if not student.handle_atcoder %}
+            <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-sm text-slate-400">
+                Sem handle do AtCoder configurado.
+            </div>
+        {% else %}
+            {% if visualizer_error %}
+                <div class="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-4 text-sm text-rose-200">
+                    {{ visualizer_error }}
+                </div>
+            {% endif %}
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="text-[11px] uppercase tracking-wide text-slate-500">Rating atual</div>
+                    <div class="mt-1 text-2xl font-bold text-amber-200">{{ latest_rating|default:"-" }}</div>
+                    <div class="mt-1 text-[11px] {% if delta_last or delta_last == 0 %}{% if delta_last >= 0 %}text-emerald-300{% else %}text-rose-300{% endif %}{% else %}text-slate-500{% endif %}">
+                        {% if delta_last or delta_last == 0 %}Último snapshot: {% if delta_last >= 0 %}+{% endif %}{{ delta_last }}{% else %}Sem variação recente{% endif %}
+                    </div>
+                </div>
+                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="text-[11px] uppercase tracking-wide text-slate-500">Pico histórico</div>
+                    <div class="mt-1 text-2xl font-bold text-slate-100">{{ peak_rating|default:"-" }}</div>
+                    <div class="mt-1 text-[11px] text-slate-500">Em {{ snapshots_n|default:0 }} snapshots</div>
+                </div>
+                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="text-[11px] uppercase tracking-wide text-slate-500">Janela recente</div>
+                    <div class="mt-1 text-2xl font-bold {% if delta_window or delta_window == 0 %}{% if delta_window >= 0 %}text-emerald-200{% else %}text-rose-200{% endif %}{% else %}text-slate-200{% endif %}">
+                        {% if delta_window or delta_window == 0 %}{% if delta_window >= 0 %}+{% endif %}{{ delta_window }}{% else %}-{% endif %}
+                    </div>
+                    <div class="mt-1 text-[11px] text-slate-500">Vs ~5 snapshots atrás</div>
+                </div>
+                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="text-[11px] uppercase tracking-wide text-slate-500">Período</div>
+                    <div class="mt-1 text-sm font-semibold text-slate-100">
+                        {% if first_date and last_date %}
+                            {{ first_date|date:"d/m/Y" }} → {{ last_date|date:"d/m/Y" }}
+                        {% else %}
+                            Sem histórico
+                        {% endif %}
+                    </div>
+                    <div class="mt-1 text-[11px] text-slate-500">Sincronização diária</div>
+                </div>
+            </div>
+
+            <div class="mt-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                    <div class="text-xs text-slate-500">Rating (snapshot diário)</div>
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                        <span class="inline-flex items-center gap-1">
+                            <span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+                            Série
+                        </span>
+                        <span class="inline-flex items-center gap-1">
+                            <span class="h-2.5 w-2.5 rounded-full bg-amber-300/40"></span>
+                            Área
+                        </span>
+                    </div>
+                </div>
+                {% if not points %}
+                    <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-6 text-sm text-amber-200">
+                        Ainda não há snapshots suficientes. Eles são gerados diariamente (e também após entrar nesta aba).
+                    </div>
+                {% else %}
+                    <div id="ac-rating-chart-wrap" class="relative overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50 p-2">
+                        <svg width="{{ svg_width }}" height="{{ svg_height }}" viewBox="0 0 {{ svg_width }} {{ svg_height }}" class="min-w-[760px]">
+                            <defs>
+                                <linearGradient id="ac-line-area" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="rgba(245,158,11,0.45)"></stop>
+                                    <stop offset="100%" stop-color="rgba(245,158,11,0.02)"></stop>
+                                </linearGradient>
+                            </defs>
+
+                            {% for tick in y_ticks %}
+                                <line x1="{{ chart_left }}" y1="{{ tick.y }}" x2="{{ svg_width|add:'-18' }}" y2="{{ tick.y }}" stroke="rgba(148,163,184,0.18)" stroke-width="1"></line>
+                                <text x="6" y="{{ tick.y|add:'4' }}" fill="rgba(148,163,184,0.75)" font-size="11">{{ tick.value }}</text>
+                            {% endfor %}
+
+                            {% for marker in x_markers %}
+                                <line x1="{{ marker.x }}" y1="{{ chart_top }}" x2="{{ marker.x }}" y2="{{ chart_bottom }}" stroke="rgba(245,158,11,0.24)" stroke-dasharray="3 3"></line>
+                                <text x="{{ marker.x }}" y="{{ chart_bottom|add:'18' }}" text-anchor="{{ marker.anchor }}" fill="rgba(148,163,184,0.72)" font-size="11">{{ marker.label }}</text>
+                            {% endfor %}
+
+                            {% if area_path %}
+                                <path d="{{ area_path }}" fill="url(#ac-line-area)"></path>
+                            {% endif %}
+                            <polyline points="{{ polyline }}" fill="none" stroke="rgba(251,191,36,0.96)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+
+                            <line id="ac-rating-crosshair" x1="0" y1="{{ chart_top }}" x2="0" y2="{{ chart_bottom }}" class="hidden" stroke="rgba(16,185,129,0.75)" stroke-dasharray="4 4"></line>
+
+                            {% for p in points %}
+                                <circle cx="{{ p.x }}"
+                                        cy="{{ p.y }}"
+                                        r="4.5"
+                                        fill="rgba(16,185,129,0.95)"
+                                        stroke="rgba(2,6,23,0.9)"
+                                        stroke-width="1.5"
+                                        class="ac-rating-point cursor-pointer"
+                                        data-tooltip="{{ p.tooltip|escape }}">
+                                    <title>{{ p.tooltip }}</title>
+                                </circle>
+                            {% endfor %}
+                        </svg>
+                        <div id="ac-rating-tooltip" class="pointer-events-none absolute z-20 hidden max-w-[320px] rounded-lg border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-lg"></div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="text-sm font-semibold text-slate-100">Últimos snapshots</div>
+                    <div class="mt-3 space-y-2 text-sm">
+                        {% for s in snapshots %}
+                            <div class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2">
+                                <span class="text-slate-300">{{ s.date }}</span>
+                                <span class="text-slate-100 font-semibold">{{ s.rating }}</span>
+                            </div>
+                        {% empty %}
+                            <div class="text-sm text-slate-400">Sem dados ainda.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                    <div class="text-sm font-semibold text-slate-100">Distribuição de solves (rating)</div>
+                    <div class="mt-2 text-xs text-slate-400">Baseado no rating do CLIST para tarefas do AtCoder.</div>
+                    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                        <span class="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1">
+                            Pico de frequência: <span class="text-slate-100 font-semibold">{{ hist_peak_count|default:0 }}</span>
+                        </span>
+                        <span class="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1">
+                            Hardest: <span class="text-slate-100 font-semibold">{{ hardest|default:"-" }}</span>
+                        </span>
+                        <span class="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1">
+                            Avg: <span class="text-slate-100 font-semibold">{% if avg %}{{ avg|floatformat:0 }}{% else %}-{% endif %}</span>
+                        </span>
+                        <span class="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1">
+                            Solves: <span class="text-slate-100 font-semibold">{{ solved_n|default:0 }}</span>
+                        </span>
+                    </div>
+                    {% if bins %}
+                        <div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+                            <div class="overflow-x-auto">
+                                <div class="min-w-[760px]">
+                                    <div class="flex h-[178px] items-end gap-1.5 rounded-xl border border-slate-800 bg-slate-950/50 px-2 pb-2 pt-3">
+                                        {% for b in bins %}
+                                            <div class="group flex w-6 shrink-0 flex-col items-center justify-end">
+                                                {% if b.is_peak %}
+                                                    <span class="mb-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-amber-200">{{ b.count }}</span>
+                                                {% else %}
+                                                    <span class="mb-1 h-[14px] text-[9px] opacity-0 select-none">0</span>
+                                                {% endif %}
+                                                <div class="w-full rounded-t transition {% if b.is_peak %}bg-amber-300/95 shadow-[0_0_0_1px_rgba(251,191,36,0.7)]{% else %}bg-amber-500/70 group-hover:bg-amber-400/90{% endif %}"
+                                                     style="height: {{ b.height_px }}px"
+                                                     title="{{ b.label }} • {{ b.count }} solves • {{ b.percent|floatformat:1 }}%">
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="mt-2 flex items-start gap-1.5 px-2 text-[10px] text-slate-500">
+                                        {% for b in bins %}
+                                            <div class="w-6 shrink-0 text-center">
+                                                {% if forloop.counter0|divisibleby:3 %}
+                                                    {{ b.label }}
+                                                {% else %}
+                                                    <span class="opacity-0 select-none">.</span>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
+                                <div class="text-[11px] uppercase tracking-wide text-slate-500">Faixas mais frequentes</div>
+                                <div class="mt-3 space-y-3">
+                                    {% for b in top_bins %}
+                                        <div>
+                                            <div class="flex items-center justify-between text-xs">
+                                                <span class="font-medium text-slate-200">{{ b.label }}</span>
+                                                <span class="text-slate-400">{{ b.count }} • {{ b.percent|floatformat:1 }}%</span>
+                                            </div>
+                                            <div class="mt-1 h-1.5 rounded-full bg-slate-800">
+                                                <div class="h-1.5 rounded-full bg-amber-400/80" style="width: {{ b.percent|floatformat:2 }}%"></div>
+                                            </div>
+                                        </div>
+                                    {% empty %}
+                                        <div class="text-xs text-slate-500">Sem faixas com solves.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-6 text-sm text-slate-400">
+                            Sem solves com rating disponível ainda.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+<script>
+(() => {
+    const wrap = document.getElementById("ac-rating-chart-wrap");
+    const tooltip = document.getElementById("ac-rating-tooltip");
+    const crosshair = document.getElementById("ac-rating-crosshair");
+    if (!wrap || !tooltip) return;
+
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const hide = () => {
+        tooltip.classList.add("hidden");
+        if (crosshair) crosshair.classList.add("hidden");
+    };
+
+    const points = wrap.querySelectorAll(".ac-rating-point");
+    points.forEach((point) => {
+        const text = point.getAttribute("data-tooltip") || "";
+        const svgX = point.getAttribute("cx") || "0";
+
+        const show = (event) => {
+            tooltip.textContent = text;
+            tooltip.classList.remove("hidden");
+
+            const rect = wrap.getBoundingClientRect();
+            const rawX = event.clientX - rect.left + wrap.scrollLeft + 12;
+            const rawY = event.clientY - rect.top - 16;
+            const minX = wrap.scrollLeft + 8;
+            const maxX = wrap.scrollLeft + wrap.clientWidth - tooltip.offsetWidth - 8;
+            const x = clamp(rawX, minX, Math.max(minX, maxX));
+            const y = clamp(rawY, 6, Math.max(6, rect.height - tooltip.offsetHeight - 6));
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+
+            if (crosshair) {
+                crosshair.setAttribute("x1", svgX);
+                crosshair.setAttribute("x2", svgX);
+                crosshair.classList.remove("hidden");
+            }
+        };
+
+        point.addEventListener("mouseenter", show);
+        point.addEventListener("mousemove", show);
+        point.addEventListener("mouseleave", hide);
+    });
+    wrap.addEventListener("mouseleave", hide);
+})();
+</script>

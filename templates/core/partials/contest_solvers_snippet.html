@@ -1,0 +1,46 @@
+<div class="flex flex-wrap gap-2 max-h-24 overflow-auto pr-1">
+    {% for solver in solvers_display|default:solvers %}
+        {% if solver.submission_url %}
+            <a href="{{ solver.submission_url }}" target="_blank"
+               class="px-2 py-1 rounded-full text-xs border {% if not solver.pill_style %}bg-emerald-500/10 text-emerald-200 border-emerald-500/20{% endif %}"
+               {% if solver.pill_style %}style="{{ solver.pill_style }}"{% endif %}
+               title="{% if solver.is_villain_group %}Solver{% elif solver.group_name %}Grupo: {{ solver.group_name }}{% else %}Solver{% endif %}">
+                {{ solver.username }}
+            </a>
+        {% else %}
+            <span class="px-2 py-1 rounded-full text-xs border {% if not solver.pill_style %}bg-slate-800/70 text-slate-200 border-slate-700{% endif %}"
+                  {% if solver.pill_style %}style="{{ solver.pill_style }}"{% endif %}
+                  title="{% if solver.is_villain_group %}Solver{% elif solver.group_name %}Grupo: {{ solver.group_name }}{% else %}Solver{% endif %}">
+                {{ solver.username }}
+            </span>
+        {% endif %}
+    {% empty %}
+        <span class="text-xs text-slate-500">0</span>
+    {% endfor %}
+</div>
+
+{% if extra_count and extra_count > 0 %}
+    <details class="mt-2 text-xs">
+        <summary class="cursor-pointer text-slate-400 hover:text-slate-200">
+            Ver todos ({{ solvers|length }})
+        </summary>
+        <div class="mt-2 flex flex-wrap gap-2 max-h-40 overflow-auto pr-1">
+            {% for solver in solvers_remaining %}
+                {% if solver.submission_url %}
+                    <a href="{{ solver.submission_url }}" target="_blank"
+                       class="px-2 py-1 rounded-full text-xs border {% if not solver.pill_style %}bg-emerald-500/10 text-emerald-200 border-emerald-500/20{% endif %}"
+                       {% if solver.pill_style %}style="{{ solver.pill_style }}"{% endif %}
+                       title="{% if solver.is_villain_group %}Solver{% elif solver.group_name %}Grupo: {{ solver.group_name }}{% else %}Solver{% endif %}">
+                        {{ solver.username }}
+                    </a>
+                {% else %}
+                    <span class="px-2 py-1 rounded-full text-xs border {% if not solver.pill_style %}bg-slate-800/70 text-slate-200 border-slate-700{% endif %}"
+                          {% if solver.pill_style %}style="{{ solver.pill_style }}"{% endif %}
+                          title="{% if solver.is_villain_group %}Solver{% elif solver.group_name %}Grupo: {{ solver.group_name }}{% else %}Solver{% endif %}">
+                        {{ solver.username }}
+                    </span>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </details>
+{% endif %}

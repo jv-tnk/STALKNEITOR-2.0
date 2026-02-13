@@ -1,0 +1,5 @@
+{% for item in items %}
+<div id="solver-{{ item.problem_id }}" class="solver-loaded" hx-swap-oob="innerHTML">
+    {% include "core/partials/contest_solvers_snippet.html" with solvers=item.solvers solvers_display=item.solvers_display solvers_remaining=item.solvers_remaining extra_count=item.extra_count %}
+</div>
+{% endfor %}

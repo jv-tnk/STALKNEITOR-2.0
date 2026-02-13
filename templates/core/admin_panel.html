@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="space-y-6">
+    <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-6">
+        <h1 class="text-2xl font-bold text-slate-100">Painel do Professor</h1>
+    </div>
+
+    {% if error %}
+        <div class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+        <div class="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-200">{{ success }}</div>
+    {% endif %}
+    {% if force_error %}
+        <div class="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">{{ force_error }}</div>
+    {% endif %}
+    {% if maintenance_error %}
+        <div class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">{{ maintenance_error }}</div>
+    {% endif %}
+
+    <div class="grid gap-4 md:grid-cols-4">
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Contas no painel</div>
+            <div class="mt-2 text-3xl font-bold text-slate-100">{{ user_total }}</div>
+            <div class="mt-1 text-xs text-slate-400">Admins: {{ super_total }}</div>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Alunos acompanhados</div>
+            <div class="mt-2 text-3xl font-bold text-slate-100">{{ student_total }}</div>
+            <div class="mt-1 text-xs text-slate-400">Sem contar usuarios de grupo vilao.</div>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Contests cadastrados</div>
+            <div class="mt-2 text-3xl font-bold text-slate-100">{{ contest_total }}</div>
+            <div class="mt-1 text-xs text-slate-400">Base geral de contests do sistema.</div>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">APIs respondendo</div>
+            <div class="mt-2 text-3xl font-bold text-emerald-200">{{ api_checks_ok }}/{{ api_checks_total }}</div>
+            <div class="mt-1 text-xs text-slate-400">Use a tabela abaixo para ver detalhe.</div>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-100">Nivel de sincronizacao</h2>
+                <p class="text-xs text-slate-400">Resumo geral em porcentagem.</p>
+            </div>
+            <div class="text-right">
+                <div class="text-3xl font-bold text-emerald-200">{{ sync_health.overall_percent }}%</div>
+                <div class="text-[11px] text-slate-500">{{ sync_health.updated_at|date:"d/m/Y H:i:s" }}</div>
+            </div>
+        </div>
+        <div class="mt-3 h-2 w-full rounded-full bg-slate-800">
+            <div class="h-2 rounded-full bg-emerald-400" style="width: {{ sync_health.overall_percent }}%"></div>
+        </div>
+        <div class="mt-4 grid gap-2 md:grid-cols-2">
+            {% for row in sync_health.components %}
+                <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                    <div class="flex items-center justify-between gap-2 text-xs">
+                        <span class="text-slate-300">{{ row.label }}</span>
+                        <span class="font-semibold text-slate-100">{{ row.percent }}% ({{ row.detail }})</span>
+                    </div>
+                    <div class="mt-2 h-1.5 w-full rounded-full bg-slate-800">
+                        <div class="h-1.5 rounded-full {% if row.percent >= 85 %}bg-emerald-400{% elif row.percent >= 60 %}bg-amber-400{% else %}bg-rose-400{% endif %}"
+                             style="width: {{ row.percent }}%"></div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <h2 class="text-lg font-semibold text-slate-100">Temporada atual</h2>
+            <p class="text-xs text-slate-400">Defina o periodo usado no ranking da turma.</p>
+            <form method="post" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_season">
+                <label class="block text-xs text-slate-400">
+                    Nome da temporada (opcional)
+                    <input name="season_name" type="text" value="{{ active_season.name|default:'' }}" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block text-xs text-slate-400">
+                        Inicio
+                        <input name="season_start" type="date" value="{% if active_season %}{{ active_season.start_date }}{% endif %}" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                    </label>
+                    <label class="block text-xs text-slate-400">
+                        Fim
+                        <input name="season_end" type="date" value="{% if active_season %}{{ active_season.end_date }}{% endif %}" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                    </label>
+                </div>
+                <button type="submit" class="w-full rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-500/25">
+                    Salvar temporada
+                </button>
+            </form>
+            {% if active_season %}
+                <form method="post" class="mt-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_season">
+                    <input type="hidden" name="season_id" value="{{ active_season.id }}">
+                    <button
+                        type="submit"
+                        onclick="return confirm('Tem certeza que deseja apagar a temporada atual?')"
+                        class="w-full rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100 hover:bg-rose-500/20">
+                        Apagar temporada atual
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-100">Checagem das APIs</h2>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refresh_api_checks">
+                    <button type="submit" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200 hover:text-emerald-200">
+                        Rodar checagem
+                    </button>
+                </form>
+            </div>
+            <div class="mt-2 text-[11px] text-slate-500">
+                {% if api_checks_checked_at %}
+                    Ultima checagem: {{ api_checks_checked_at|date:"d/m/Y H:i:s" }}
+                    {% if api_checks_age_seconds is not None %}• ha {{ api_checks_age_seconds }}s{% endif %}
+                {% else %}
+                    Ainda sem checagem registrada.
+                {% endif %}
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-xs">
+                    <thead class="text-slate-400">
+                        <tr class="border-b border-slate-800">
+                            <th class="px-2 py-2">API</th>
+                            <th class="px-2 py-2">Status</th>
+                            <th class="px-2 py-2">HTTP</th>
+                            <th class="px-2 py-2">Tempo</th>
+                            <th class="px-2 py-2">Detalhe</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-200">
+                        {% for row in api_checks %}
+                            <tr class="border-b border-slate-800/70 align-top">
+                                <td class="px-2 py-2 font-medium text-slate-100">{{ row.name }}</td>
+                                <td class="px-2 py-2">
+                                    {% if row.ok %}
+                                        <span class="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-200">OK</span>
+                                    {% else %}
+                                        <span class="rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-rose-200">Falha</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-2 py-2">{{ row.status_code|default:"-" }}</td>
+                                <td class="px-2 py-2">
+                                    {% if row.latency_ms is not None %}
+                                        {{ row.latency_ms }} ms
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="px-2 py-2 text-slate-400">{{ row.detail }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-2 py-3 text-slate-500">Sem dados de checagem.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-100">Temporadas</h2>
+                <p class="text-xs text-slate-400">Tabela detalhada para comparar desempenho (inclui a temporada atual).</p>
+            </div>
+            <span class="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300">
+                {{ season_history_rows|length }} temporadas
+            </span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-left text-xs">
+                <thead class="text-slate-400">
+                    <tr class="border-b border-slate-800">
+                        <th class="px-2 py-2">Temporada</th>
+                        <th class="px-2 py-2">Periodo</th>
+                        <th class="px-2 py-2">Dias</th>
+                        <th class="px-2 py-2">Solves</th>
+                        <th class="px-2 py-2">CF/AC</th>
+                        <th class="px-2 py-2">Alunos ativos</th>
+                        <th class="px-2 py-2">Contests</th>
+                        <th class="px-2 py-2">Pontos</th>
+                        <th class="px-2 py-2">Destaque</th>
+                        <th class="px-2 py-2">Acoes</th>
+                    </tr>
+                </thead>
+                <tbody class="text-slate-200">
+                    {% for season in season_history_rows %}
+                        <tr class="border-b border-slate-800/70 align-top {% if season.is_active %}bg-emerald-500/5{% endif %}">
+                            <td class="px-2 py-2 font-medium text-slate-100">
+                                <div class="flex items-center gap-2">
+                                    <span>{{ season.name }}</span>
+                                    {% if season.is_active %}
+                                        <span class="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">Atual</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-2 py-2">{{ season.start_date|date:"d/m/Y" }} - {{ season.end_date|date:"d/m/Y" }}</td>
+                            <td class="px-2 py-2">{{ season.duration_days }}</td>
+                            <td class="px-2 py-2">{{ season.solves_total }}</td>
+                            <td class="px-2 py-2">CF {{ season.cf_solves }} / AC {{ season.ac_solves }}</td>
+                            <td class="px-2 py-2">{{ season.active_students }}</td>
+                            <td class="px-2 py-2">{{ season.contests_total }}</td>
+                            <td class="px-2 py-2 text-indigo-200">{{ season.points_total }}</td>
+                            <td class="px-2 py-2">
+                                {% if season.top_student_name %}
+                                    {{ season.top_student_name }} ({{ season.top_student_points }})
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="px-2 py-2">
+                                <div class="flex flex-col gap-2">
+                                    <a href="{{ season.ranking_url }}" class="text-emerald-300 hover:text-emerald-200">Ver ranking</a>
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_season">
+                                        <input type="hidden" name="season_id" value="{{ season.id }}">
+                                        <button
+                                            type="submit"
+                                            onclick="return confirm('Tem certeza que deseja apagar esta temporada?')"
+                                            class="text-left text-rose-300 hover:text-rose-200">
+                                            Apagar temporada
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="10" class="px-2 py-3 text-slate-500">
+                                Ainda nao ha temporadas para mostrar.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <h2 class="text-lg font-semibold text-slate-100">Para que serve cada API</h2>
+        <p class="text-xs text-slate-400">Resumo simples para qualquer pessoa entender o papel de cada integracao.</p>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-left text-xs">
+                <thead class="text-slate-400">
+                    <tr class="border-b border-slate-800">
+                        <th class="px-2 py-2">API</th>
+                        <th class="px-2 py-2">Endereco</th>
+                        <th class="px-2 py-2">Pra que serve</th>
+                        <th class="px-2 py-2">Observacao</th>
+                    </tr>
+                </thead>
+                <tbody class="text-slate-200">
+                    {% for api in api_catalog %}
+                        <tr class="border-b border-slate-800/70 align-top">
+                            <td class="px-2 py-2 font-medium text-slate-100">{{ api.name }}</td>
+                            <td class="px-2 py-2 text-slate-300">{{ api.base_url }}</td>
+                            <td class="px-2 py-2 text-slate-300">{{ api.usage }}</td>
+                            <td class="px-2 py-2 text-slate-400">{{ api.notes }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

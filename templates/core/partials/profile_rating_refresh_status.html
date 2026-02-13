@@ -1,0 +1,30 @@
+{% if statuses %}
+<div class="space-y-2">
+    {% for s in statuses %}
+        {% if s.state == "ok" %}
+            <div class="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                <span class="font-semibold">{{ s.platform }}</span> — {{ s.message }}
+            </div>
+        {% elif s.state == "cooldown" %}
+            <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                <span class="font-semibold">{{ s.platform }}</span> — {{ s.message }}
+            </div>
+        {% elif s.state == "error" %}
+            <div class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+                <span class="font-semibold">{{ s.platform }}</span> — {{ s.message }}
+            </div>
+        {% else %}
+            <div class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-300">
+                <span class="font-semibold">{{ s.platform }}</span> — {{ s.message }}
+            </div>
+        {% endif %}
+    {% endfor %}
+</div>
+<div class="mt-2 text-[11px] text-slate-500">
+    Limite de atualização manual: {{ min_minutes }} min.
+</div>
+{% else %}
+<div class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-300">
+    Nenhuma atualização executada.
+</div>
+{% endif %}

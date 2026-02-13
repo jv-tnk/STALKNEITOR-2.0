@@ -1,0 +1,61 @@
+{% if status == "error" %}
+    <div class="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+        {{ message }}
+    </div>
+{% elif status == "warning" %}
+    <div class="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+        {{ message }}
+    </div>
+{% else %}
+    <div class="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+        {{ message }}
+    </div>
+{% endif %}
+
+{% if details %}
+    <div class="mt-2 text-[11px] text-slate-400 space-y-1">
+        {% if auto_refresh %}
+            <div class="text-emerald-300">Atualização automática de solvers ativa por ~2 minutos.</div>
+        {% endif %}
+        {% if details.future_start %}
+            <div>Inicio do contest: {{ details.future_start|date:"d/m/Y H:i" }}</div>
+        {% endif %}
+        {% if details.problem_count is not None %}
+            <div>Problemas no catalogo: {{ details.problem_count }}</div>
+        {% endif %}
+        {% if details.ratings_ok is not None %}
+            <div>Ratings OK: {{ details.ratings_ok }}</div>
+        {% endif %}
+        <div>Ratings enfileirados: {{ details.ratings_enqueued }}</div>
+        <div>Pendentes restantes: {{ details.eligible_remaining }}</div>
+        <div>Em cooldown: {{ details.cooldown_blocked }} ({{ details.cooldown_minutes }} min)</div>
+        <div>Esgotaram tentativas: {{ details.attempts_blocked }} (max {{ details.max_attempts }})</div>
+        <div>NOT_FOUND no CLIST: {{ details.not_found }}</div>
+        <div>Total pendentes: {{ details.pending_total }}</div>
+        {% if details.submissions_students is not None %}
+            <div>
+                Submissões:
+                {% if details.submissions_error %}
+                    falha ao sincronizar
+                {% elif details.submissions_mode == "disabled" %}
+                    desativado para usuario comum (limite de carga)
+                {% elif details.submissions_mode == "inline" %}
+                    sincronizadas agora para {{ details.submissions_students }} alunos
+                    (novas no contest: {{ details.submissions_created_for_contest }},
+                    atualizadas: {{ details.submissions_updated_for_contest }},
+                    erros: {{ details.submissions_sync_errors }})
+                {% elif details.submissions_queued %}
+                    enfileiradas para {{ details.submissions_students }} alunos
+                {% else %}
+                    nenhuma conta com handle na plataforma
+                {% endif %}
+            </div>
+        {% endif %}
+        {% if details.rate_limited %}
+            <div class="text-amber-300">Limite do CLIST atingido agora. Aguarde para nao exceder as requisicoes.</div>
+        {% endif %}
+        {% if details.submissions_error %}
+            <div class="text-amber-300">{{ details.submissions_error }}</div>
+        {% endif %}
+    </div>
+{% endif %}

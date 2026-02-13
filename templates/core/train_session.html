@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="train-page"
+     data-train-timer="{% if session.is_active %}1{% else %}0{% endif %}"
+     data-session-id="{{ session.id }}"
+     data-target-minutes="{{ session.target_minutes }}"
+     data-autostart="{% if session.is_active %}1{% else %}0{% endif %}">
+    <div id="train-session-stats"
+         data-total="{{ total }}"
+         data-done="{{ done }}"
+         data-expected-total="{{ expected_total }}"
+         data-expected-done="{{ expected_done }}"
+         class="hidden"></div>
+<section class="space-y-6">
+    <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+            <a href="{% url 'train' %}" class="text-sm text-slate-400 hover:text-emerald-300">← Voltar para Treino</a>
+            <h1 class="mt-2 text-3xl font-bold text-slate-100">Sessão de treino</h1>
+            <p class="text-sm text-slate-400">
+                {% if session.mode == "consistency" %}Consistência{% elif session.mode == "challenge" %}Desafio{% elif session.mode == "general" %}Geral{% elif session.mode == "custom" %}Personalizada{% else %}Evolução{% endif %}
+                • {{ session.started_at|date:"d/m/Y H:i" }}
+                • {{ session.target_minutes }} min
+            </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <label class="train-blind-toggle">
+                <input type="checkbox" data-blind-toggle="rating">
+                <span>Ocultar dificuldade</span>
+            </label>
+            <label class="train-blind-toggle">
+                <input type="checkbox" data-blind-toggle="tags">
+                <span>Ocultar tags</span>
+            </label>
+            {% if session.is_active %}
+                <form method="post" action="{% url 'train_session_end' session.id %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/20">
+                        Encerrar sessão
+                    </button>
+                </form>
+            {% else %}
+                <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm text-slate-300">
+                    Sessão encerrada
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="session-progress" class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+                <div class="text-xs uppercase tracking-wide text-slate-500">Progresso</div>
+                <div class="mt-1 text-lg font-semibold text-slate-100">{{ done }}/{{ total }} concluídos</div>
+                <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <span class="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M20 6L9 17l-5-5"></path>
+                        </svg>
+                        {{ solved }}
+                    </span>
+                    <span class="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-sky-100">
+                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 5h13a2 2 0 0 1 2 2v12H6a2 2 0 0 0-2 2V5z"></path>
+                            <path d="M6 5v14"></path>
+                        </svg>
+                        {{ editorial }}
+                    </span>
+                    <span class="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-rose-100">
+                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M18 6L6 18"></path>
+                            <path d="M6 6l12 12"></path>
+                        </svg>
+                        {{ stuck }}
+                    </span>
+                </div>
+            </div>
+            <div class="w-full md:w-72">
+                {% with pct=done|floatformat:0 %}
+                {% endwith %}
+                {% if total > 0 %}
+                    {% widthratio done total 100 as pct %}
+                {% else %}
+                    {% widthratio 0 1 100 as pct %}
+                {% endif %}
+                <div class="h-3 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div class="h-full bg-emerald-500/70" style="width: {{ pct }}%;"></div>
+                </div>
+                <div class="mt-1 text-right text-xs text-slate-500">{{ pct }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="space-y-3">
+        {% for item in items %}
+            {% include "core/partials/train_session_item_row.html" with session=session item=item %}
+        {% endfor %}
+    </div>
+</section>
+</div>
+{% endblock %}

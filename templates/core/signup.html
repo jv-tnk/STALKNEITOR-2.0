@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-[70vh] flex items-center justify-center">
+    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        <h2 class="text-xl font-semibold text-slate-100 mb-2">Criar conta</h2>
+        <p class="text-xs text-slate-400 mb-6">Cadastre-se para acompanhar seu progresso.</p>
+
+        {% if errors %}
+            <div class="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                Corrija os campos destacados abaixo.
+            </div>
+        {% endif %}
+
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Username</label>
+                <input type="text" name="username" class="w-full rounded-lg border {% if errors.username %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                {% if errors.username %}
+                    <p class="mt-1 text-xs text-rose-300">{{ errors.username }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Senha</label>
+                <input type="password" name="password1" class="w-full rounded-lg border {% if errors.password %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Confirmar senha</label>
+                <input type="password" name="password2" class="w-full rounded-lg border {% if errors.password %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                {% if errors.password %}
+                    <p class="mt-1 text-xs text-rose-300">{{ errors.password }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Handle Codeforces (opcional)</label>
+                <input type="text" name="cf_handle" class="w-full rounded-lg border {% if errors.cf_handle %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                {% if errors.cf_handle %}
+                    <p class="mt-1 text-xs text-rose-300">{{ errors.cf_handle }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Handle AtCoder (opcional)</label>
+                <input type="text" name="ac_handle" class="w-full rounded-lg border {% if errors.ac_handle %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                {% if errors.ac_handle %}
+                    <p class="mt-1 text-xs text-rose-300">{{ errors.ac_handle }}</p>
+                {% endif %}
+            </div>
+            <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                Criar conta
+            </button>
+        </form>
+
+        <div class="mt-4 text-center text-xs text-slate-400">
+            Já tem conta? <a href="{% url 'login' %}" class="text-indigo-400 hover:text-indigo-300">Entrar</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

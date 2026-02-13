@@ -1,0 +1,7 @@
+<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]
+    {% if status == 'approved' %}border-emerald-500/40 text-emerald-300 bg-emerald-500/10
+    {% elif status == 'published' %}border-indigo-500/40 text-indigo-300 bg-indigo-500/10
+    {% elif status == 'draft' %}border-slate-600 text-slate-300 bg-slate-800
+    {% else %}border-slate-700 text-slate-400 bg-slate-900{% endif %}">
+    {% if status == 'approved' %}Aprovada{% elif status == 'published' %}Publicada{% elif status == 'draft' %}Rascunho{% else %}—{% endif %}
+</span>

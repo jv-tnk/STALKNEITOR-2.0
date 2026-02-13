@@ -1,0 +1,128 @@
+<div id="contest-card-{{ row.contest.id }}"
+     class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 shadow-lg shadow-slate-950/30"
+     {% if auto_refresh %}
+     hx-get="{% url 'contest_card_snippet' platform=row.contest.platform|lower contest_id=row.contest.contest_id %}"
+     hx-trigger="load delay:2s, every 2s"
+     hx-swap="outerHTML"
+     {% endif %}>
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {% if row.contest.platform == 'CF' %}bg-red-500/20 text-red-200 border border-red-500/30{% else %}bg-amber-500/20 text-amber-200 border border-amber-500/30{% endif %}">
+                {{ row.contest.platform }}
+            </span>
+            <div>
+                <a href="{{ row.url }}" target="_blank" class="text-lg font-semibold hover:text-emerald-300 transition">
+                    {{ row.contest.title }}
+                </a>
+                <div class="text-xs text-slate-400">
+                    {{ row.contest.start_time|date:"d/m/Y H:i" }}
+                </div>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            {% if row.contest.platform == 'AC' %}
+                <span class="px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                    {{ row.contest.category }}
+                </span>
+            {% else %}
+                <span class="px-3 py-1 rounded-full border border-red-500/30 bg-red-500/10 text-red-200">
+                    {{ row.contest.division }}
+                </span>
+            {% endif %}
+            <span class="rating-pill px-3 py-1 rounded-full text-[11px] font-semibold"
+                  style="--rating-color: {{ row.average_color }}; --rating-fill: {{ row.average_fill }}%; --rating-text: {{ row.average_text }};">
+                <span>{{ row.average_display }}</span>
+            </span>
+            <span class="px-3 py-1 rounded-full text-[11px] font-semibold border
+                {% if row.ratings_status == 'READY' %}
+                    border-emerald-500/40 bg-emerald-500/15 text-emerald-200
+                {% elif row.ratings_status == 'PARTIAL' %}
+                    border-amber-500/40 bg-amber-500/15 text-amber-200
+                {% else %}
+                    border-slate-700 bg-slate-800/60 text-slate-300
+                {% endif %}">
+                Ratings {{ row.ratings_ready }}/{{ row.ratings_total }}
+            </span>
+            <a href="{{ row.detail_url }}" class="text-slate-200 hover:text-emerald-300 text-sm underline underline-offset-4">
+                Ver detalhes
+            </a>
+            <a href="{{ row.url }}" target="_blank" class="text-emerald-300 hover:text-emerald-200 text-sm underline underline-offset-4">
+                Abrir contest
+            </a>
+            {% if user.is_authenticated %}
+                <form method="post"
+                      action="{% url 'force_contest_sync' row.contest.platform row.contest.contest_id %}"
+                      hx-post="{% url 'force_contest_sync' row.contest.platform row.contest.contest_id %}"
+                      hx-target="#contest-card-{{ row.contest.id }}"
+                      hx-swap="outerHTML"
+                      class="inline-flex">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/25">
+                        Forcar update
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if force_status %}
+        {% include "core/partials/contest_force_status.html" with status=force_status.status message=force_status.message details=force_status.details %}
+    {% endif %}
+
+    <div class="mt-5 grid gap-4 md:grid-cols-2">
+        {% for problem in row.problems %}
+            <div class="rounded-xl border border-slate-800 bg-slate-950/80 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        {% if problem.url %}
+                            <a href="{{ problem.url }}" target="_blank" class="text-sm font-semibold hover:text-emerald-300 transition">
+                                {{ problem.index_label }} — {{ problem.name }}
+                            </a>
+                        {% else %}
+                            <div class="text-sm font-semibold">
+                                {{ problem.index_label }} — {{ problem.name }}
+                            </div>
+                        {% endif %}
+                        <div class="text-xs text-slate-400">
+                            {{ problem.solve_count }} solvers
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        <span class="rating-pill px-3 py-1 rounded-full text-xs font-semibold"
+                              style="--rating-color: {{ problem.rating_color }}; --rating-fill: {{ problem.rating_fill }}%; --rating-text: {{ problem.rating_text }};">
+                            <span>Rating {{ problem.rating_label }}</span>
+                        </span>
+                        {% if problem.url %}
+                            <a href="{{ problem.url }}" target="_blank" class="text-xs text-slate-400 hover:text-slate-200">
+                                Link do problema
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    {% if problem.tags %}
+                        {% for tag in problem.tags %}
+                            <span class="px-2 py-1 rounded-full bg-slate-800/70 text-slate-200 text-[11px] border border-slate-700">
+                                {{ tag }}
+                            </span>
+                        {% endfor %}
+                    {% else %}
+                        <span class="text-xs text-slate-500">Sem tags</span>
+                    {% endif %}
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    {% for solver in problem.solvers %}
+                        <span class="px-2 py-1 rounded-full text-xs border {% if not solver.pill_style %}bg-emerald-500/10 text-emerald-200 border-emerald-500/20{% endif %}"
+                              {% if solver.pill_style %}style="{{ solver.pill_style }}"{% endif %}
+                              title="{% if solver.is_villain_group and solver.group_name %}Grupo: {{ solver.group_name }}{% elif solver.is_villain_group %}Vilão{% endif %}">
+                            {{ solver.username|default:solver }}
+                        </span>
+                    {% empty %}
+                        <span class="text-xs text-slate-500">Sem solves ainda</span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>

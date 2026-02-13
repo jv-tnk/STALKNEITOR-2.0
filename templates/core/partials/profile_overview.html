@@ -1,0 +1,93 @@
+<div class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        <div class="text-xs text-slate-500">Pontos (Geral)</div>
+        <div class="mt-2 text-3xl font-bold text-indigo-300">
+            {{ agg.points_general_cf_equiv_total|default:0 }}
+        </div>
+        <div class="mt-2 text-[11px] text-slate-500">
+            Temporada {{ agg.season_points_general_cf_equiv|default:0 }} · 30d {{ agg.points_general_cf_equiv_30d|default:0 }}
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        <div class="text-xs text-slate-500">First AC</div>
+        <div class="mt-2 text-3xl font-bold text-slate-100">{{ student.score_events.count }}</div>
+        <div class="mt-2 text-[11px] text-slate-500">
+            CF {{ solved_cf }} · AC {{ solved_ac }}
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        <div class="text-xs text-slate-500">Rating oficial</div>
+        <div class="mt-2 flex flex-wrap gap-2 text-sm">
+            <span class="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-red-100">CF {{ student.cf_rating_current|default:"-" }}</span>
+            <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-amber-100">AC {{ student.ac_rating_current|default:"-" }}</span>
+        </div>
+        <div class="mt-2 text-[11px] text-slate-500">
+            Atualizado: CF {% if student.cf_rating_updated_at %}{{ student.cf_rating_updated_at|date:"d/m H:i" }}{% else %}-{% endif %} · AC {% if student.ac_rating_updated_at %}{{ student.ac_rating_updated_at|date:"d/m H:i" }}{% else %}-{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-100">Atividade recente</h2>
+            <p class="text-xs text-slate-400">First AC registrados no sistema.</p>
+        </div>
+        <a href="{% url 'ranking' %}" class="text-xs text-slate-300 hover:text-emerald-200 underline underline-offset-4">Ver ranking</a>
+    </div>
+
+    {% if recent_solves %}
+        <div class="mt-4 overflow-hidden rounded-xl border border-slate-800">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-900/70 text-xs text-slate-400">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Quando</th>
+                        <th class="px-4 py-3 text-left">Problema</th>
+                        <th class="px-4 py-3 text-left">Plataforma</th>
+                        <th class="px-4 py-3 text-right">Pontos</th>
+                        <th class="px-4 py-3 text-right">Link</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                {% for ev in recent_solves %}
+                    <tr class="bg-slate-950/40">
+                        <td class="px-4 py-3 text-slate-300">{{ ev.solved_at|date:"d/m/Y H:i" }}</td>
+                        <td class="px-4 py-3">
+                            <a href="{{ ev.problem_url }}" target="_blank" class="text-slate-100 hover:text-emerald-200 underline underline-offset-4">
+                                {{ ev.problem_url|truncatechars:52 }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="rounded-full px-3 py-1 text-xs font-semibold {% if ev.platform == 'CF' %}bg-red-500/20 text-red-200 border border-red-500/30{% else %}bg-amber-500/20 text-amber-200 border border-amber-500/30{% endif %}">
+                                {{ ev.platform }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right font-semibold text-indigo-300">
+                            {% if ev.points_pending %}
+                                <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-200">
+                                    Pendente
+                                </span>
+                            {% else %}
+                                {{ ev.points_display }}
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            {% if ev.submission_url %}
+                                <a href="{{ ev.submission_url }}" target="_blank" class="text-xs text-slate-300 hover:text-emerald-200 underline underline-offset-4">Abrir submissão</a>
+                            {% else %}
+                                <span class="text-xs text-slate-500">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-sm text-slate-400">
+            Nenhum solve registrado ainda.
+        </div>
+    {% endif %}
+</div>

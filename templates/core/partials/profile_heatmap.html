@@ -1,0 +1,132 @@
+<div id="profile-heatmap-root" class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-xs text-slate-400">
+            <span class="text-slate-200 font-semibold">{{ start_date }}</span>
+            <span class="text-slate-500">→</span>
+            <span class="text-slate-200 font-semibold">{{ end_date }}</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1">
+                Total: <span class="text-slate-100 font-semibold">{{ total_value }}</span>
+            </span>
+            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1">
+                Dias ativos: <span class="text-slate-100 font-semibold">{{ active_days }}</span>
+            </span>
+            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1">
+                Streak: <span class="text-slate-100 font-semibold">{{ streak }}</span>
+            </span>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-300">
+        <span id="hm-day-details">
+            Passe o cursor ou clique em um dia para ver detalhes.
+        </span>
+    </div>
+
+    <div class="overflow-x-auto">
+        <div class="inline-flex gap-1">
+            {% for week in weeks %}
+                <div class="grid grid-rows-7 gap-1">
+                    {% for cell in week %}
+                        {% if not cell.in_range %}
+                            <div class="h-3 w-3"></div>
+                        {% else %}
+                            {% if cell.level == 0 %}
+                                <button type="button"
+                                        class="hm-day-cell h-3 w-3 rounded-sm border border-slate-800 bg-slate-800/40"
+                                        data-date="{{ cell.date|date:'d/m/Y' }}"
+                                        data-value="{{ cell.value|default:0 }}"
+                                        data-problems="{{ cell.problems|default:0 }}"
+                                        data-submissions="{{ cell.submissions|default:0 }}"
+                                        data-points="{{ cell.points|default:0 }}"
+                                        title="{{ cell.date|date:'d/m/Y' }} • {{ metric_label }}: {{ cell.value|default:0 }} • Problemas: {{ cell.problems|default:0 }} • Submissões: {{ cell.submissions|default:0 }}">
+                                </button>
+                            {% elif cell.level == 1 %}
+                                <button type="button"
+                                        class="hm-day-cell h-3 w-3 rounded-sm bg-emerald-500/20"
+                                        data-date="{{ cell.date|date:'d/m/Y' }}"
+                                        data-value="{{ cell.value|default:0 }}"
+                                        data-problems="{{ cell.problems|default:0 }}"
+                                        data-submissions="{{ cell.submissions|default:0 }}"
+                                        data-points="{{ cell.points|default:0 }}"
+                                        title="{{ cell.date|date:'d/m/Y' }} • {{ metric_label }}: {{ cell.value|default:0 }} • Problemas: {{ cell.problems|default:0 }} • Submissões: {{ cell.submissions|default:0 }}">
+                                </button>
+                            {% elif cell.level == 2 %}
+                                <button type="button"
+                                        class="hm-day-cell h-3 w-3 rounded-sm bg-emerald-500/35"
+                                        data-date="{{ cell.date|date:'d/m/Y' }}"
+                                        data-value="{{ cell.value|default:0 }}"
+                                        data-problems="{{ cell.problems|default:0 }}"
+                                        data-submissions="{{ cell.submissions|default:0 }}"
+                                        data-points="{{ cell.points|default:0 }}"
+                                        title="{{ cell.date|date:'d/m/Y' }} • {{ metric_label }}: {{ cell.value|default:0 }} • Problemas: {{ cell.problems|default:0 }} • Submissões: {{ cell.submissions|default:0 }}">
+                                </button>
+                            {% elif cell.level == 3 %}
+                                <button type="button"
+                                        class="hm-day-cell h-3 w-3 rounded-sm bg-emerald-500/55"
+                                        data-date="{{ cell.date|date:'d/m/Y' }}"
+                                        data-value="{{ cell.value|default:0 }}"
+                                        data-problems="{{ cell.problems|default:0 }}"
+                                        data-submissions="{{ cell.submissions|default:0 }}"
+                                        data-points="{{ cell.points|default:0 }}"
+                                        title="{{ cell.date|date:'d/m/Y' }} • {{ metric_label }}: {{ cell.value|default:0 }} • Problemas: {{ cell.problems|default:0 }} • Submissões: {{ cell.submissions|default:0 }}">
+                                </button>
+                            {% else %}
+                                <button type="button"
+                                        class="hm-day-cell h-3 w-3 rounded-sm bg-emerald-500/80"
+                                        data-date="{{ cell.date|date:'d/m/Y' }}"
+                                        data-value="{{ cell.value|default:0 }}"
+                                        data-problems="{{ cell.problems|default:0 }}"
+                                        data-submissions="{{ cell.submissions|default:0 }}"
+                                        data-points="{{ cell.points|default:0 }}"
+                                        title="{{ cell.date|date:'d/m/Y' }} • {{ metric_label }}: {{ cell.value|default:0 }} • Problemas: {{ cell.problems|default:0 }} • Submissões: {{ cell.submissions|default:0 }}">
+                                </button>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-3 text-[11px] text-slate-500">
+        <div class="flex items-center gap-2">
+            <span>Menos</span>
+            <span class="h-3 w-3 rounded-sm border border-slate-800 bg-slate-800/40"></span>
+            <span class="h-3 w-3 rounded-sm bg-emerald-500/20"></span>
+            <span class="h-3 w-3 rounded-sm bg-emerald-500/35"></span>
+            <span class="h-3 w-3 rounded-sm bg-emerald-500/55"></span>
+            <span class="h-3 w-3 rounded-sm bg-emerald-500/80"></span>
+            <span>Mais</span>
+        </div>
+        <div>
+            Max: {{ max_value }}
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const root = document.getElementById('profile-heatmap-root');
+    if (!root) return;
+    const details = root.querySelector('#hm-day-details');
+    if (!details) return;
+    const metricLabel = "{{ metric_label|escapejs }}";
+
+    const updateDetails = (el) => {
+        const date = el.dataset.date || '-';
+        const value = el.dataset.value || '0';
+        const problems = el.dataset.problems || '0';
+        const submissions = el.dataset.submissions || '0';
+        const points = el.dataset.points || '0';
+        details.textContent = `${date} · ${metricLabel}: ${value} · Problemas (Primeiro AC): ${problems} · Submissões: ${submissions} · Pontos: ${points}`;
+    };
+
+    root.querySelectorAll('.hm-day-cell').forEach((cell) => {
+        cell.addEventListener('mouseenter', () => updateDetails(cell));
+        cell.addEventListener('focus', () => updateDetails(cell));
+        cell.addEventListener('click', () => updateDetails(cell));
+    });
+})();
+</script>

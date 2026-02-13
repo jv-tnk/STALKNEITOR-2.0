@@ -6,7 +6,8 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.db.models.functions import TruncDate
 
-from core.models import PerfilAluno, Turma, UserRankSnapshot
+from core.models import CompetitorGroup, PerfilAluno, ScoreEvent, Turma, UserRankSnapshot
+from core.services.season import get_active_season_range
 
 
 TIERS = [
@@ -32,6 +33,7 @@ class RankingRow:
     tier_range: str
     tier_color: str
     points_to_next: int
+    points_to_above: int | None = None
     activity_days: int = 0
     activity_solves: int = 0
     rating_updated_at: datetime | None = None
@@ -55,8 +57,37 @@ def _tier_for_points(points: int) -> tuple[str, str | None, int, str, str, int]:
     return last["name"], None, 100, f"{last['min']}+", last["color"], 0
 
 
+def tier_for_points(points: int) -> tuple[str, str | None, int, str, str, int]:
+    return _tier_for_points(points)
+
+
 def _base_queryset(scope: str, turma_id: int | None) -> PerfilAluno:
-    qs = PerfilAluno.objects.select_related("user", "turma")
+    villain_user_ids = list(
+        CompetitorGroup.objects.filter(is_villain=True)
+        .values_list("users__id", flat=True)
+        .exclude(users__id__isnull=True)
+        .distinct()
+    )
+    qs = (
+        PerfilAluno.objects.select_related("user", "turma")
+        .only(
+            "id",
+            "user_id",
+            "turma_id",
+            "handle_codeforces",
+            "handle_atcoder",
+            "cf_rating_current",
+            "ac_rating_current",
+            "cf_rating_updated_at",
+            "ac_rating_updated_at",
+            "user__id",
+            "user__username",
+            "turma__id",
+            "turma__nome",
+        )
+    )
+    if villain_user_ids:
+        qs = qs.exclude(user_id__in=villain_user_ids)
     if scope == "turma" and turma_id:
         qs = qs.filter(turma_id=turma_id)
     return qs
@@ -66,19 +97,19 @@ def _get_points_annotation(category: str, window: str) -> tuple[Value, dict]:
     annotations = {}
 
     if window == "all":
-        general_field = "points_general_norm_total"
+        general_field = "points_general_cf_equiv_total"
         cf_field = "points_cf_raw_total"
         ac_field = "points_ac_raw_total"
     elif window == "7d":
-        general_field = "points_general_7d"
+        general_field = "points_general_cf_equiv_7d"
         cf_field = "points_cf_7d"
         ac_field = "points_ac_7d"
     elif window == "30d":
-        general_field = "points_general_30d"
+        general_field = "points_general_cf_equiv_30d"
         cf_field = "points_cf_30d"
         ac_field = "points_ac_30d"
     else:
-        general_field = "season_points_general_norm"
+        general_field = "season_points_general_cf_equiv"
         cf_field = "season_points_cf_raw"
         ac_field = "season_points_ac_raw"
 
@@ -105,7 +136,7 @@ def _get_points_annotation(category: str, window: str) -> tuple[Value, dict]:
 def _get_weekly_annotation(category: str) -> dict:
     annotations = {}
     if category == "overall":
-        field = "points_general_7d"
+        field = "points_general_cf_equiv_7d"
     else:
         field = "points_cf_7d" if category == "cf" else "points_ac_7d"
     annotations["weekly_points"] = Coalesce(
@@ -257,11 +288,16 @@ def build_activity_ranking(
     elif window == "30d":
         window_start = now - timedelta(days=30)
     elif window == "season":
-        window_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if window_start.month == 12:
-            window_end = window_start.replace(year=window_start.year + 1, month=1)
+        _, season_start, season_end = get_active_season_range()
+        if season_start and season_end:
+            window_start = season_start
+            window_end = season_end
         else:
-            window_end = window_start.replace(month=window_start.month + 1)
+            window_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if window_start.month == 12:
+                window_end = window_start.replace(year=window_start.year + 1, month=1)
+            else:
+                window_end = window_start.replace(month=window_start.month + 1)
 
     event_filter = Q(score_events__isnull=False)
     if category == "cf":
@@ -331,23 +367,20 @@ def build_activity_ranking(
 
 
 def load_previous_ranks(
-    category: str,
+    mode: str,
+    source: str,
     window: str,
     scope: str,
-    turma_id: int | None,
 ) -> dict[int, int]:
     qs = UserRankSnapshot.objects.filter(
-        category=_map_category(category),
-        window=_map_window(window),
-        scope=_map_scope(scope),
+        mode=mode,
+        source=source,
+        window_key=window,
+        scope_key=scope,
     )
-    if scope == "turma" and turma_id:
-        qs = qs.filter(turma_id=turma_id)
-
     latest = qs.order_by("-snapshot_date").first()
     if not latest:
         return {}
-
     snapshots = qs.filter(snapshot_date=latest.snapshot_date)
     return {snap.aluno_id: snap.rank for snap in snapshots}
 
@@ -359,7 +392,7 @@ def build_ranking_with_delta(
     turma_id: int | None = None,
 ) -> list[RankingRow]:
     rows = build_ranking(category, window, scope, turma_id)
-    prev_ranks = load_previous_ranks(category, window, scope, turma_id)
+    prev_ranks = load_previous_ranks("points", category, window, scope)
 
     for row in rows:
         prev_rank = prev_ranks.get(row.aluno.id)
@@ -369,34 +402,78 @@ def build_ranking_with_delta(
     return rows
 
 
+def build_rating_ranking_with_delta(
+    category: str = "overall",
+    scope: str = "global",
+    turma_id: int | None = None,
+) -> list[RankingRow]:
+    rows = build_rating_ranking(category, scope, turma_id)
+    prev_ranks = load_previous_ranks("rating", category, "all", scope)
+    for row in rows:
+        prev_rank = prev_ranks.get(row.aluno.id)
+        if prev_rank is not None:
+            row.delta = prev_rank - row.rank
+    return rows
+
+
+def top_movers_last_7d(limit: int = 5) -> list[RankingRow]:
+    rows = build_ranking_with_delta("overall", "7d", "global", None)
+    since = timezone.now() - timedelta(days=7)
+    activity = ScoreEvent.objects.filter(solved_at__gte=since).values("aluno_id").annotate(count=Count("id"))
+    activity_map = {item["aluno_id"]: item["count"] for item in activity}
+    filtered = [row for row in rows if activity_map.get(row.aluno.id, 0) >= 3 and row.delta > 0]
+    filtered.sort(key=lambda r: (-r.delta, r.rank))
+    return filtered[:limit]
+
+
 def snapshot_rankings() -> None:
     today = timezone.localdate()
-    scopes = ["global", "turma"]
+    scopes = ["global"]
     categories = ["overall", "cf", "ac"]
     windows = ["all", "7d", "30d", "season"]
 
-    turmas = list(Turma.objects.all())
-
     for scope in scopes:
-        scope_turmas = [None] if scope == "global" else turmas
-        for turma in scope_turmas:
-            turma_id = turma.id if turma else None
-            for category in categories:
-                for window in windows:
-                    rows = build_ranking(category, window, scope, turma_id)
-                    for row in rows:
-                        UserRankSnapshot.objects.update_or_create(
-                            aluno=row.aluno,
-                            scope=_map_scope(scope),
-                            turma=turma,
-                            category=_map_category(category),
-                            window=_map_window(window),
-                            snapshot_date=today,
-                            defaults={
-                                "rank": row.rank,
-                                "points": row.points,
-                            },
-                        )
+        for category in categories:
+            for window in windows:
+                rows = build_ranking(category, window, scope, None)
+                for row in rows:
+                    UserRankSnapshot.objects.update_or_create(
+                        aluno=row.aluno,
+                        scope=_map_scope(scope),
+                        turma=None,
+                        category=_map_category(category),
+                        window=_map_window(window),
+                        snapshot_date=today,
+                        defaults={
+                            "rank": row.rank,
+                            "points": row.points,
+                            "mode": "points",
+                            "source": category,
+                            "window_key": window,
+                            "scope_key": scope,
+                            "value": row.points,
+                        },
+                    )
+
+            rating_rows = build_rating_ranking(category, scope, None)
+            for row in rating_rows:
+                UserRankSnapshot.objects.update_or_create(
+                    aluno=row.aluno,
+                    scope=_map_scope(scope),
+                    turma=None,
+                    category=_map_category(category),
+                    window=_map_window("all"),
+                    snapshot_date=today,
+                    defaults={
+                        "rank": row.rank,
+                        "points": row.points,
+                        "mode": "rating",
+                        "source": category,
+                        "window_key": "all",
+                        "scope_key": scope,
+                        "value": row.points,
+                    },
+                )
 
 
 def _map_category(category: str) -> str:

@@ -1,170 +1,254 @@
-{% if mode == 'rating' %}
-<div class="space-y-3">
-    {% for row in rows %}
-    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-4 shadow-sm">
-        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="flex w-12 flex-col items-center text-center">
-                    <div class="text-lg font-bold text-slate-100">#{{ row.rank }}</div>
-                    {% if row.delta > 0 %}
-                        <div class="text-[11px] text-emerald-400">↑{{ row.delta }}</div>
-                    {% elif row.delta < 0 %}
-                        <div class="text-[11px] text-rose-400">↓{{ row.delta|cut:"-" }}</div>
-                    {% else %}
-                        <div class="text-[11px] text-slate-500">→0</div>
-                    {% endif %}
-                </div>
-                <div class="h-10 w-10 rounded-xl bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-200">
-                    {{ row.aluno.user.username|slice:":1"|upper }}
-                </div>
-                <div>
-                    <div class="text-sm font-semibold text-slate-100">{{ row.aluno.user.username }}</div>
-                    <div class="text-xs text-slate-500">{{ row.aluno.turma.nome|default:"Sem turma" }}</div>
-                </div>
-            </div>
-            <div class="flex flex-col md:items-end">
-                <div class="text-2xl font-bold text-indigo-400">{{ row.points }}</div>
-                <div class="text-xs text-slate-400">
-                    {% if category == 'overall' %}rating geral{% else %}rating oficial{% endif %}
-                </div>
-                <div class="text-[11px] text-slate-500">
-                    CF: {% if row.points_cf > 0 %}{{ row.points_cf }}{% else %}Sem rating{% endif %}
-                    · AC: {% if row.points_ac > 0 %}{{ row.points_ac }}{% else %}Sem rating{% endif %}
-                </div>
-            </div>
-        </div>
-        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-            <span>Atualizado: {% if row.rating_updated_at %}{{ row.rating_updated_at|date:"d/m/Y" }}{% else %}n/a{% endif %}</span>
-            <span>{% if row.points > 0 %}Score normalizado{% else %}Sem rating suficiente{% endif %}</span>
-        </div>
-    </div>
-    {% empty %}
-    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-slate-400">
-        Nenhum aluno encontrado para os filtros atuais.
-    </div>
-    {% endfor %}
+{% if mode == 'how' %}
+<div id="filter-chips" hx-swap-oob="innerHTML" class="flex flex-wrap gap-2">
+    <span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-200">Modo: Como funciona</span>
 </div>
-{% elif mode == 'activity' %}
-<div class="space-y-3">
-    {% for row in rows %}
-    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-4 shadow-sm">
-        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="flex w-12 flex-col items-center text-center">
-                    <div class="text-lg font-bold text-slate-100">#{{ row.rank }}</div>
-                    {% if row.delta > 0 %}
-                        <div class="text-[11px] text-emerald-400">↑{{ row.delta }}</div>
-                    {% elif row.delta < 0 %}
-                        <div class="text-[11px] text-rose-400">↓{{ row.delta|cut:"-" }}</div>
-                    {% else %}
-                        <div class="text-[11px] text-slate-500">→0</div>
-                    {% endif %}
+<span id="filters-count" hx-swap-oob="innerHTML">0</span>
+<div id="ranking-search-state" hx-swap-oob="outerHTML" data-q="{{ q|default:'' }}"></div>
+<span id="ranking-subtitle" hx-swap-oob="innerHTML">{{ subtitle|default:"Como funciona" }}</span>
+<div class="space-y-6">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+        <div class="mb-3 flex items-center justify-between gap-2">
+            <h2 class="text-lg font-semibold text-slate-100">Como funciona</h2>
+            <button type="button"
+                    data-how-back
+                    data-mode="points"
+                    class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+                Voltar
+            </button>
+        </div>
+        <div class="text-sm text-slate-400 space-y-2">
+            <p>Contamos apenas o <strong>Primeiro AC</strong> por problema.</p>
+            <p>O rating do problema vem do CLIST.</p>
+            <p><strong>CF:</strong> pontos do solve = rating do problema.</p>
+            <p><strong>AC:</strong> rating do problema é convertido para escala CF-like e então somado como pontos.</p>
+            <p>Solves feitos durante o contest recebem <strong>+10%</strong> de bônus.</p>
+            <p>No Geral, problemas do AtCoder são convertidos para escala Codeforces com a fórmula fixa <strong>{{ conversion_status.formula_label }}</strong>.</p>
+            <p class="text-xs text-slate-500">
+                Referências:
+                <a href="{{ conversion_status.reference_url }}" target="_blank" class="text-emerald-300 hover:text-emerald-200 underline underline-offset-4">rating-correlation (silverfoxxxy)</a>
+                ·
+                <a href="https://clist.by/" target="_blank" class="text-emerald-300 hover:text-emerald-200 underline underline-offset-4">CLIST.by</a>
+            </p>
+        </div>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500 mb-3">Exemplos AC → CF</div>
+            <div class="space-y-2 text-sm">
+                {% for row in examples_ac %}
+                <div class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+                    <span class="text-slate-300">AC {{ row.ac }}</span>
+                    <span class="text-slate-400">→ CF {{ row.cf_equiv }}</span>
+                    <span class="text-indigo-300">{{ row.points }} pts</span>
                 </div>
-                <div class="h-10 w-10 rounded-xl bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-200">
-                    {{ row.aluno.user.username|slice:":1"|upper }}
-                </div>
-                <div>
-                    <div class="text-sm font-semibold text-slate-100">{{ row.aluno.user.username }}</div>
-                    <div class="text-xs text-slate-500">{{ row.aluno.turma.nome|default:"Sem turma" }}</div>
-                </div>
+                {% endfor %}
             </div>
-            <div class="flex flex-col md:items-end">
-                <div class="text-2xl font-bold text-indigo-400">{{ row.activity_days }}</div>
-                <div class="text-xs text-slate-400">dias ativos</div>
-                <div class="text-[11px] text-emerald-400">{{ row.activity_solves }} solves no periodo</div>
-                {% if category == 'overall' %}
-                <div class="text-[11px] text-slate-500">CF: {{ row.points_cf }} · AC: {{ row.points_ac }}</div>
-                {% endif %}
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500 mb-3">Exemplos CF → Pontos</div>
+            <div class="space-y-2 text-sm">
+                {% for row in examples_cf %}
+                <div class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+                    <span class="text-slate-300">CF {{ row.cf }}</span>
+                    <span class="text-indigo-300">{{ row.points }} pts</span>
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>
-    {% empty %}
-    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-slate-400">
-        Nenhum aluno encontrado para os filtros atuais.
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <span>Modelo de conversão: {{ conversion_status.formula_label }}</span>
+            <span>Amostra local monitorada: {{ conversion_status.pairs_used }} usuários</span>
+        </div>
+        <div class="mt-2 text-slate-500">
+            Última atualização de monitoramento: {% if conversion_status.computed_at %}{{ conversion_status.computed_at|date:"d/m/Y H:i" }}{% else %}n/a{% endif %}
+        </div>
     </div>
-    {% endfor %}
 </div>
+
 {% else %}
-<div class="space-y-3">
-    {% for row in rows %}
-    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-4 shadow-sm">
-        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="flex w-12 flex-col items-center text-center">
-                    <div class="text-lg font-bold text-slate-100">#{{ row.rank }}</div>
-                    {% if row.delta > 0 %}
-                        <div class="text-[11px] text-emerald-400">↑{{ row.delta }}</div>
-                    {% elif row.delta < 0 %}
-                        <div class="text-[11px] text-rose-400">↓{{ row.delta|cut:"-" }}</div>
-                    {% else %}
-                        <div class="text-[11px] text-slate-500">→0</div>
-                    {% endif %}
-                </div>
-                <div class="h-10 w-10 rounded-xl bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-200">
-                    {{ row.aluno.user.username|slice:":1"|upper }}
-                </div>
-                <div>
-                    <div class="text-sm font-semibold text-slate-100">{{ row.aluno.user.username }}</div>
-                    <div class="text-xs text-slate-500">{{ row.aluno.turma.nome|default:"Sem turma" }}</div>
-                </div>
-            </div>
-            <div class="flex flex-col md:items-end">
-                <div class="text-2xl font-bold text-indigo-400">{{ row.points }}</div>
-                <div class="text-xs text-emerald-400">+{{ row.weekly_points }} essa semana</div>
-                {% if category == 'overall' %}
-                <div class="text-[11px] text-slate-500">CF: {{ row.points_cf }} · AC: {{ row.points_ac }}</div>
-                {% endif %}
-            </div>
-        </div>
-        <div class="mt-3">
-            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-                <span>{{ row.tier_name }} ({{ row.tier_range }} pts)</span>
-                <span>
-                    {% if row.tier_next %}
-                        Faltam {{ row.points_to_next }} pts para {{ row.tier_next }}
-                    {% else %}
-                        Max tier
-                    {% endif %}
-                </span>
-            </div>
-            <div class="mt-2 h-2 rounded-full bg-slate-800">
-                <div class="h-2 rounded-full bg-gradient-to-r {{ row.tier_color }}" style="width: {{ row.tier_progress }}%"></div>
-            </div>
-        </div>
-    </div>
-    {% empty %}
-    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-slate-400">
-        Nenhum aluno encontrado para os filtros atuais.
-    </div>
+
+<div id="filter-chips" hx-swap-oob="innerHTML" class="flex flex-wrap gap-2">
+    {% for chip in chips %}
+        <button type="button" class="chip-btn rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-200" data-key="{{ chip.key }}" data-value="{{ chip.value }}">
+            {{ chip.label }} ✕
+        </button>
     {% endfor %}
 </div>
+<span id="filters-count" hx-swap-oob="innerHTML">{{ filters_count }}</span>
+<div id="ranking-search-state" hx-swap-oob="outerHTML" data-q="{{ q|default:'' }}"></div>
+<span id="ranking-subtitle" hx-swap-oob="innerHTML">{{ subtitle }}</span>
 
-{% endif %}
+<div class="space-y-5">
+    {% if window == 'season' and season_info %}
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <div class="text-xs uppercase tracking-wide text-slate-500">Temporada</div>
+                <div class="mt-1 font-semibold text-slate-100">{{ season_info.label }}</div>
+                <div class="mt-1 text-xs text-slate-400">
+                    {{ season_info.start|date:"d/m/Y" }} → {{ season_info.end|date:"d/m/Y" }}
+                </div>
+            </div>
+            {% if season_info.is_active %}
+                <span class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">Atual</span>
+            {% else %}
+                <span class="rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-300">Temporada encerrada</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
-{% if current_user_rank %}
-<div class="sticky bottom-4 mt-6">
-    <div class="rounded-xl border border-indigo-500/40 bg-indigo-900/40 px-4 py-4 shadow-lg">
-        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div class="text-sm text-indigo-100">
-                Voce esta <span class="font-bold">#{{ current_user_rank.rank }}</span>
+    {% if current_user_rank %}
+    <div class="grid gap-4 md:grid-cols-2">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Sua posição</div>
+            <div class="mt-2 flex items-center gap-3">
+                <div class="text-3xl font-bold text-slate-100">#{{ current_user_rank.rank }}</div>
                 {% if current_user_rank.delta > 0 %}
-                    <span class="text-emerald-300"> (↑{{ current_user_rank.delta }})</span>
+                    <span class="text-sm text-emerald-400">↑{{ current_user_rank.delta }}</span>
                 {% elif current_user_rank.delta < 0 %}
-                    <span class="text-rose-300"> (↓{{ current_user_rank.delta|cut:"-" }})</span>
+                    <span class="text-sm text-rose-400">↓{{ current_user_rank.delta|cut:"-" }}</span>
                 {% else %}
-                    <span class="text-slate-300"> (→0)</span>
+                    <span class="text-sm text-slate-500">→0</span>
                 {% endif %}
             </div>
-            <div class="text-xs text-indigo-200">
-                {% if mode == 'rating' %}
-                    Score {{ current_user_rank.points }} · CF {% if current_user_rank.points_cf > 0 %}{{ current_user_rank.points_cf }}{% else %}Sem rating{% endif %} · AC {% if current_user_rank.points_ac > 0 %}{{ current_user_rank.points_ac }}{% else %}Sem rating{% endif %}
-                {% elif mode == 'activity' %}
-                    {{ current_user_rank.activity_days }} dias ativos · {{ current_user_rank.activity_solves }} solves
-                {% else %}
-                    {{ current_user_rank.points }} pts · +{{ current_user_rank.weekly_points }} essa semana
+            <div class="mt-2 text-xs text-slate-400">Score: {{ current_user_rank.points }}</div>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Seu score no período</div>
+            <div class="mt-2 text-2xl font-bold text-indigo-400">{{ current_user_rank.points }}</div>
+            {% if category == 'overall' and mode == 'points' %}
+                <div class="mt-1 text-xs text-slate-500">CF {{ current_user_rank.points_cf }} · AC {{ current_user_rank.points_ac }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-xs text-slate-500">Top subida da semana</div>
+                <div class="text-sm text-slate-300">Quem mais ganhou posições</div>
+            </div>
+            <button type="button" class="text-xs text-indigo-300 hover:text-indigo-200" data-apply-movers>Ver todos</button>
+        </div>
+        <div class="mt-3 grid gap-2">
+            {% for mover in top_movers %}
+            <div class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm">
+                <span class="text-slate-300">#{{ mover.rank }} {{ mover.aluno.user.username }}</span>
+                <span class="text-emerald-400">↑{{ mover.delta }}</span>
+            </div>
+            {% empty %}
+            <div class="text-xs text-slate-500">Sem movimentos relevantes nesta semana.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if rows %}
+    <div class="hidden md:block">
+        <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+            <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-900 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3">#</th>
+                        <th class="px-4 py-3">Aluno</th>
+                        <th class="px-4 py-3">Score</th>
+                        <th class="px-4 py-3">Dist. acima</th>
+                        <th class="px-4 py-3">Δ</th>
+                        <th class="px-4 py-3">Solves</th>
+                        {% if mode == 'points' and category == 'overall' %}
+                        <th class="px-4 py-3">CF | AC</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for row in rows %}
+                    <tr class="{% if current_user_rank and row.aluno.id == current_user_rank.aluno.id %}bg-indigo-900/20{% endif %}">
+                        <td class="px-4 py-3 text-slate-200">#{{ row.rank }}</td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'user_profile' row.aluno.user.username %}" class="text-slate-100 font-semibold hover:text-emerald-200 underline underline-offset-4">
+                                {{ row.aluno.user.username }}
+                            </a>
+                            <div class="text-xs text-slate-500">CF {{ row.aluno.handle_codeforces|default:"-" }} · AC {{ row.aluno.handle_atcoder|default:"-" }}</div>
+                        </td>
+                        <td class="px-4 py-3 text-indigo-300 font-semibold">{{ row.points }}</td>
+                        <td class="px-4 py-3 text-slate-300">
+                            {% if row.rank == 1 %}
+                                -
+                            {% else %}
+                                {{ row.points_to_above|default:0 }}
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if row.delta > 0 %}
+                                <span class="text-emerald-400">↑{{ row.delta }}</span>
+                            {% elif row.delta < 0 %}
+                                <span class="text-rose-400">↓{{ row.delta|cut:"-" }}</span>
+                            {% else %}
+                                <span class="text-slate-500">→0</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-slate-300">{{ row.activity_solves|default:0 }}</td>
+                        {% if mode == 'points' and category == 'overall' %}
+                        <td class="px-4 py-3 text-slate-400">{{ row.points_cf }} | {{ row.points_ac }}</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="md:hidden space-y-3">
+        {% for row in rows %}
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm text-slate-300">
+                        <a href="{% url 'user_profile' row.aluno.user.username %}" class="hover:text-emerald-200 underline underline-offset-4">
+                            #{{ row.rank }} {{ row.aluno.user.username }}
+                        </a>
+                    </div>
+                    <div class="text-xs text-slate-500">CF {{ row.aluno.handle_codeforces|default:"-" }} · AC {{ row.aluno.handle_atcoder|default:"-" }}</div>
+                </div>
+                <div class="text-lg text-indigo-300 font-semibold">{{ row.points }}</div>
+            </div>
+            <div class="mt-2 flex items-center justify-between text-xs text-slate-400">
+                <span>Δ {% if row.delta > 0 %}↑{{ row.delta }}{% elif row.delta < 0 %}↓{{ row.delta|cut:"-" }}{% else %}→0{% endif %}</span>
+                <span>Dist. {% if row.rank == 1 %}-{% else %}{{ row.points_to_above|default:0 }}{% endif %}</span>
+                <span>{{ row.activity_solves|default:0 }} solves</span>
+                {% if mode == 'points' and category == 'overall' %}
+                <span>CF {{ row.points_cf }} · AC {{ row.points_ac }}</span>
                 {% endif %}
             </div>
         </div>
+        {% endfor %}
     </div>
+
+    <div class="flex items-center justify-between text-xs text-slate-500">
+        <span>Página {{ page }} de {{ total_pages }}</span>
+        <div class="flex gap-2">
+            {% if has_prev %}
+            <button class="px-3 py-1 rounded border border-slate-700" data-page="{{ prev_page }}">Anterior</button>
+            {% endif %}
+            {% if has_next %}
+            <button class="px-3 py-1 rounded border border-slate-700" data-page="{{ next_page }}">Próxima</button>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-8 text-center text-slate-400">
+        Nenhum resultado para esses filtros.
+        <div class="mt-4 flex items-center justify-center gap-2">
+            <button class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-200" data-reset-filters>Reset</button>
+            <button class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-200" data-clear-search>Remover busca</button>
+        </div>
+    </div>
+    {% endif %}
 </div>
+
 {% endif %}

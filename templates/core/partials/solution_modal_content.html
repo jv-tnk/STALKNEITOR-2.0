@@ -16,10 +16,15 @@
             <div class="mt-4 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 overflow-x-auto">
                 {% if solution %}
                     <div class="flex items-center justify-between px-4 pt-3 text-[11px] text-slate-400">
-                        <span>Linguagem: {{ solution.linguagem }}</span>
-                        <span>{{ solution.data_postagem|date:"d/m/Y H:i" }}</span>
+                        <span>Linguagem: {{ solution.get_language_display }}</span>
+                        <span>{{ solution.created_at|date:"d/m/Y H:i" }}</span>
                     </div>
-                    <pre class="p-4 whitespace-pre-wrap break-words"><code>{{ solution.codigo }}</code></pre>
+                    {% if solution.idea_summary %}
+                        <div class="px-4 pt-3 text-xs text-slate-300">
+                            {{ solution.idea_summary }}
+                        </div>
+                    {% endif %}
+                    <pre class="p-4 whitespace-pre-wrap break-words"><code class="{{ hljs_class }}">{{ solution.code_text }}</code></pre>
                 {% else %}
                     <div class="p-4 text-sm text-slate-400">
                         Nenhuma solucao compartilhada para este problema.

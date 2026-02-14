@@ -1,37 +1,8 @@
 # Stalkineitor 2.0
 
-Plataforma treinamento para programacao competitiva.
+Plataforma de treinamento para programacao competitiva.
 
-## Rodar localmente para testar (passo a passo)
-
-### Modo direto (sem scripts `.sh`, so terminal)
-
-```bash
-git clone https://github.com/jv-tnk/STALKNEITOR-2.0.git
-cd STALKNEITOR-2.0
-cp .env.example .env
-# edite o .env com SECRET_KEY e, se quiser, DJANGO_SUPERUSER_*
-docker compose up --build -d
-docker compose ps
-docker compose logs -f web
-docker compose logs -f worker
-docker compose logs -f beat
-```
-
-Aplicacao: `http://localhost:8000` (ou a porta definida em `WEB_PORT`).
-
-Opcional: forcar ciclo inicial manual uma vez (catalogo/ratings/alunos):
-
-```bash
-docker compose exec -T web python manage.py shell <<'PY'
-from core.tasks import contests_catalog_refresh, contests_problems_scheduler, ratings_backfill_scheduler, process_rating_fetch_jobs, sync_all_students
-print(contests_catalog_refresh())
-print(contests_problems_scheduler(max_cf_per_run=12, max_ac_per_run=12))
-print(ratings_backfill_scheduler(limit=10))
-print(process_rating_fetch_jobs(limit=10))
-print(sync_all_students())
-PY
-```
+## Rodar localmente (somente terminal)
 
 ### 1) Pre-requisitos
 
@@ -39,7 +10,7 @@ PY
 - Docker Compose v2 (`docker compose`)
 - Git
 
-Cheque rapido:
+Checagem rapida:
 
 ```bash
 docker --version
@@ -54,81 +25,90 @@ git clone https://github.com/jv-tnk/STALKNEITOR-2.0.git
 cd STALKNEITOR-2.0
 ```
 
-### 3) Criar arquivo de ambiente
-
-Opcao automatica (recomendada):
-
-```bash
-chmod +x configure-env.sh
-./configure-env.sh
-```
-
-O assistente:
-
-- gera `SECRET_KEY` aleatoria
-- pergunta portas (`WEB_PORT`, `DB_PORT`, `REDIS_PORT`)
-- pergunta dados de banco local
-- permite configurar superuser inicial (username/email/senha)
-- grava tudo no `.env`
-
-Opcao manual:
+### 3) Criar `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-Campos mais importantes:
+### 4) Gerar a `SECRET_KEY` do Django
 
-- `SECRET_KEY`: chave do Django
-- `ALLOWED_HOSTS`: hosts permitidos (local: `127.0.0.1,localhost`)
-- `WEB_PORT`, `DB_PORT`, `REDIS_PORT`: portas expostas no localhost
-- `CLIST_USERNAME` e `CLIST_API_KEY`: habilitam integracoes com clist (se nao preencher, essa parte fica limitada)
-- `DJANGO_SUPERUSER_*`: opcional, para criar admin automaticamente no primeiro boot
-
-### 4) Subir tudo com um comando
+Rode:
 
 ```bash
-chmod +x stack-up.sh
-./stack-up.sh
+docker compose run --rm web python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-Esse comando sobe:
+Use o valor gerado para preencher `SECRET_KEY` no arquivo `.env`.
+
+### 5) Configurar variaveis principais no `.env`
+
+- `SECRET_KEY`
+- `ALLOWED_HOSTS` (local: `127.0.0.1,localhost`)
+- `WEB_PORT`, `DB_PORT`, `REDIS_PORT`
+- `DB_NAME`, `DB_USER`, `DB_PASSWORD`
+- `CLIST_USERNAME` e `CLIST_API_KEY` (opcional, mas recomendado)
+- `DJANGO_SUPERUSER_*` (opcional, para criar admin no bootstrap)
+
+### 6) Subir a stack
+
+```bash
+docker compose up --build -d
+```
+
+Servicos:
 
 - `db` (PostgreSQL)
 - `redis`
-- `app-init` (migracoes + bootstrap opcional de superuser)
-- `web` (Django em `:8000`)
-- `worker` (Celery)
-- `beat` (agendador Celery)
+- `app-init` (migracoes + bootstrap de usuario/perfil)
+- `web` (Django)
+- `worker` (Celery worker)
+- `beat` (Celery beat)
 
-Obs.: se o `.env` nao existir, o `./stack-up.sh` abre o assistente automaticamente.
-
-### 5) Acessar e validar
-
-- Aplicacao: `http://localhost:8000`
-- Login admin (se configurado no `.env`): use `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`
-
-Checagens uteis:
+### 7) Validar
 
 ```bash
 docker compose ps
 docker compose logs -f web
-docker compose logs -f worker beat
+docker compose logs -f worker
+docker compose logs -f beat
 ```
 
-Se `worker` e `beat` estiverem ativos, os processos de sincronizacao automatica estao rodando.
+Aplicacao: `http://localhost:8000` (ou porta definida em `WEB_PORT`).
 
-## Comandos do dia a dia
+## Comandos uteis
 
-- Subir stack: `./stack-up.sh`
-- Reconfigurar `.env`: `./stack-up.sh --configure`
-- Parar stack: `docker compose down`
-- Parar e remover volumes (limpa banco local): `docker compose down -v`
-- Reiniciar somente web: `docker compose restart web`
-- Rodar migracoes manualmente: `docker compose run --rm web python manage.py migrate`
-- Criar superuser manualmente: `docker compose run --rm web python manage.py createsuperuser`
+```bash
+# parar stack
+docker compose down
 
-## Fluxo recomendado para atualizar do GitHub
+# parar stack e limpar volumes (zera banco local)
+docker compose down -v
+
+# reiniciar apenas web
+docker compose restart web
+
+# rodar migracoes manualmente
+docker compose run --rm web python manage.py migrate
+
+# criar superuser manualmente
+docker compose run --rm web python manage.py createsuperuser
+```
+
+## Opcional: forcar ciclo inicial manual
+
+```bash
+docker compose exec -T web python manage.py shell <<'PY'
+from core.tasks import contests_catalog_refresh, contests_problems_scheduler, ratings_backfill_scheduler, process_rating_fetch_jobs, sync_all_students
+print(contests_catalog_refresh())
+print(contests_problems_scheduler(max_cf_per_run=12, max_ac_per_run=12))
+print(ratings_backfill_scheduler(limit=10))
+print(process_rating_fetch_jobs(limit=10))
+print(sync_all_students())
+PY
+```
+
+## Atualizar do GitHub
 
 ```bash
 git pull

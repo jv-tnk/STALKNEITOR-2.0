@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable
 
 from django.db import transaction
 from django.db.models import Count, Q
@@ -13,7 +12,6 @@ from core.models import (
     RatingConversionModel,
     RatingConversionPoint,
     RatingConversionSnapshot,
-    ScoreEvent,
 )
 
 

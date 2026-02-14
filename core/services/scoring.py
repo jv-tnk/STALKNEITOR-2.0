@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from django.db.models import F, Q, Sum
+from django.db.models import F, Sum
 from django.utils import timezone
 
 from core.models import Contest, ContestProblem, ScoreEvent, Submissao, UserScoreAgg

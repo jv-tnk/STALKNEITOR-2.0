@@ -6,7 +6,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.db.models.functions import TruncDate
 
-from core.models import CompetitorGroup, PerfilAluno, ScoreEvent, Turma, UserRankSnapshot
+from core.models import CompetitorGroup, PerfilAluno, ScoreEvent, UserRankSnapshot
 from core.services.season import get_active_season_range
 
 

@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from core.models import Contest, ContestProblem, ScoreEvent
 from core.services.rating_conversion import convert_ac_to_cf

@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-from celery import current_app
 from django.conf import settings
 from django.utils import timezone
 

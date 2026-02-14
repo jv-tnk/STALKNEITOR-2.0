@@ -12,11 +12,11 @@ from django.db import transaction
 from django.db.models import Max, Sum, Q, Count, Exists, OuterRef
 from django.db.models.functions import TruncDate
 from datetime import datetime, timedelta
-from collections import Counter
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.crypto import get_random_string
 from django.db import models
-from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.cache import cache
@@ -37,7 +37,6 @@ from .models import (
     TrainingQueueItem,
     TrainingSession,
     TrainingSessionItem,
-    Turma,
     UserScoreAgg,
     SeasonConfig,
 )
@@ -58,7 +57,6 @@ from .services.training import (
     build_training_inventory,
     get_baseline_ac,
     get_baseline_cf,
-    get_cf_training_zone,
     get_session_plan,
     estimate_expected_minutes,
 )
@@ -1159,6 +1157,9 @@ def _normalize_villain_group_priorities() -> None:
 
 @login_required
 def add_student(request):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("Acesso restrito.")
+
     error = None
     success = None
     form_data = None
@@ -1197,11 +1198,11 @@ def add_student(request):
 
             if not username:
                 error = "Username é obrigatório."
-            elif User.objects.filter(username=username).exists():
+            elif User.objects.filter(username__iexact=username).exists():
                 error = "Username já existe."
-            elif cf_handle and PerfilAluno.objects.filter(handle_codeforces=cf_handle).exists():
+            elif cf_handle and PerfilAluno.objects.filter(handle_codeforces__iexact=cf_handle).exists():
                 error = "Handle Codeforces já está em uso."
-            elif ac_handle and PerfilAluno.objects.filter(handle_atcoder=ac_handle).exists():
+            elif ac_handle and PerfilAluno.objects.filter(handle_atcoder__iexact=ac_handle).exists():
                 error = "Handle AtCoder já está em uso."
             elif mark_as_villain and villain_group_id_raw and villain_group_id is None:
                 error = 'Seleção inválida para grupo de "Vilões".'
@@ -1216,10 +1217,11 @@ def add_student(request):
             if not error:
                 try:
                     with transaction.atomic():
+                        temp_password = get_random_string(16)
                         user = User.objects.create_user(
                             username=username,
-                            password='password123',
-                        )  # Default password for now
+                            password=temp_password,
+                        )
                         perfil = PerfilAluno.objects.create(
                             user=user,
                             handle_codeforces=cf_handle,
@@ -1257,15 +1259,17 @@ def add_student(request):
                 except Exception as exc:
                     error = f"Falha ao cadastrar aluno: {exc}"
                 else:
+                    password_notice = f" Senha temporaria: {temp_password}"
                     if hasattr(request, 'htmx') and request.htmx:
                         return render(request, 'core/partials/student_row.html', {'student': perfil})
                     if mark_as_villain:
                         success = (
                             f"Aluno {username} cadastrado e marcado como vilão "
                             f'no grupo "{villain_group.name}".'
+                            f"{password_notice}"
                         )
                     else:
-                        success = f"Aluno {username} cadastrado com sucesso."
+                        success = f"Aluno {username} cadastrado com sucesso.{password_notice}"
                     form_data = None
 
         elif action == "create_villain_group":
@@ -2917,7 +2921,15 @@ def solutions_view(request):
         id=int(solution_id),
     )
 
-    can_edit = solution.aluno.user_id == request.user.id or request.user.is_staff
+    is_owner = solution.aluno.user_id == request.user.id
+    is_privileged = bool(request.user.is_staff or request.user.is_superuser)
+    is_published = solution.status in {"published", "approved"}
+    is_shareable_visibility = solution.visibility in {"class", "public"}
+    can_view = is_owner or is_privileged or (is_published and is_shareable_visibility)
+    if not can_view:
+        raise Http404("Solução não encontrada.")
+
+    can_edit = is_owner or request.user.is_staff
     problem_title = _resolve_problem_title(solution.problem_url) or "Problema"
 
     return render(request, 'core/solutions_view.html', {
@@ -3236,7 +3248,8 @@ def ranking_list(request):
             start_dt = None
             end_dt = None
 
-        events = ScoreEvent.objects.all()
+        row_ids = [row.aluno.id for row in rows]
+        events = ScoreEvent.objects.filter(aluno_id__in=row_ids) if row_ids else ScoreEvent.objects.none()
         if start_dt:
             events = events.filter(solved_at__gte=start_dt)
         if end_dt:

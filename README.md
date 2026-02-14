@@ -4,6 +4,35 @@ Plataforma de monitoria e treinamento para programacao competitiva.
 
 ## Rodar localmente para testar (passo a passo)
 
+### Modo direto (sem scripts `.sh`, so terminal)
+
+```bash
+git clone https://github.com/jv-tnk/STALKNEITOR-2.0.git
+cd STALKNEITOR-2.0
+cp .env.example .env
+# edite o .env com SECRET_KEY e, se quiser, DJANGO_SUPERUSER_*
+docker compose up --build -d
+docker compose ps
+docker compose logs -f web
+docker compose logs -f worker
+docker compose logs -f beat
+```
+
+Aplicacao: `http://localhost:8000` (ou a porta definida em `WEB_PORT`).
+
+Opcional: forcar ciclo inicial manual uma vez (catalogo/ratings/alunos):
+
+```bash
+docker compose exec -T web python manage.py shell <<'PY'
+from core.tasks import contests_catalog_refresh, contests_problems_scheduler, ratings_backfill_scheduler, process_rating_fetch_jobs, sync_all_students
+print(contests_catalog_refresh())
+print(contests_problems_scheduler(max_cf_per_run=12, max_ac_per_run=12))
+print(ratings_backfill_scheduler(limit=10))
+print(process_rating_fetch_jobs(limit=10))
+print(sync_all_students())
+PY
+```
+
 ### 1) Pre-requisitos
 
 - Docker Engine 24+ (ou Docker Desktop)

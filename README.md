@@ -65,7 +65,7 @@ Servicos:
 - `worker` (Celery worker)
 - `beat` (Celery beat)
 
-### 7) Validar
+### 7) Validar (nao precisa - opcional -)
 
 ```bash
 docker compose ps

@@ -1,6 +1,6 @@
-# Stalkineitor 2.1
+# Stalkineitor 2.0
 
-Plataforma de monitoria e treinamento para programacao competitiva.
+Plataforma treinamento para programacao competitiva.
 
 ## Rodar localmente para testar (passo a passo)
 

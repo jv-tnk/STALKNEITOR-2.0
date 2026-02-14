@@ -2,7 +2,7 @@
 
 Plataforma de treinamento para programacao competitiva.
 
-## Rodar localmente (somente terminal)
+## Rodar localmente
 
 ### 1) Pre-requisitos
 

@@ -15,6 +15,14 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default=[], cast=Csv())
 
+
+def _normalize_url_prefix(raw_value: str) -> str:
+    cleaned = (raw_value or '').strip().strip('/')
+    return f'/{cleaned}' if cleaned else ''
+
+
+URL_PREFIX = _normalize_url_prefix(config('URL_PREFIX', default='stalkineitor-2.0'))
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -94,7 +102,7 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = 'static/'
+STATIC_URL = f'{URL_PREFIX}/static/' if URL_PREFIX else '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
 # Session/CSRF security
@@ -107,9 +115,9 @@ if not DEBUG:
 ENABLE_CODE_FORMATTER = True
 
 # Auth redirects
-LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/dashboard/'
-LOGOUT_REDIRECT_URL = '/login/'
+LOGIN_URL = f'{URL_PREFIX}/login/' if URL_PREFIX else '/login/'
+LOGIN_REDIRECT_URL = f'{URL_PREFIX}/dashboard/' if URL_PREFIX else '/dashboard/'
+LOGOUT_REDIRECT_URL = f'{URL_PREFIX}/login/' if URL_PREFIX else '/login/'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

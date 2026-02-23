@@ -72,7 +72,7 @@
                         <a href="{% url 'admin_panel' %}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Painel ADM Nutella</a>
                         <a href="{% url 'admin_users' %}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Usuários</a>
                         <a href="{% url 'add_student' %}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Adicionar aluno</a>
-                        <a href="/admin/" target="_blank" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Painel ADM Raiz</a>
+                        <a href="{% url 'admin:index' %}" target="_blank" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Painel ADM Raiz</a>
                     </div>
                 </details>
                 {% endif %}
@@ -117,7 +117,7 @@
                         <a href="{% url 'admin_panel' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Painel ADM Nutella</a>
                         <a href="{% url 'admin_users' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Usuários</a>
                         <a href="{% url 'add_student' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Adicionar aluno</a>
-                        <a href="/admin/" target="_blank" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Painel ADM Raiz</a>
+                        <a href="{% url 'admin:index' %}" target="_blank" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Painel ADM Raiz</a>
                     </div>
                 </div>
                 {% endif %}

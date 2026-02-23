@@ -10,7 +10,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-2 text-sm">
                 <a href="{% url 'admin_panel' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-slate-200 hover:bg-slate-800">Voltar ao painel</a>
-                <a href="/admin/auth/user/" target="_blank" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-slate-200 hover:bg-slate-800">Abrir Painel ADM Raiz</a>
+                <a href="{% url 'admin:auth_user_changelist' %}" target="_blank" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-slate-200 hover:bg-slate-800">Abrir Painel ADM Raiz</a>
             </div>
         </div>
     </div>

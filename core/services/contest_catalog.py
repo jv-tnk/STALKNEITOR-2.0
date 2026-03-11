@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 from functools import lru_cache
+from html import unescape
+from html.parser import HTMLParser
 
 import requests
 
@@ -19,6 +21,87 @@ AC_CONTESTS_URLS = (
     "https://kenkoooo.com/atcoder/resources/contests.json",
     "https://s3.ap-northeast-1.amazonaws.com/kenkoooo.com/resources/contests.json",
 )
+AC_CONTEST_TASKS_URL = "https://atcoder.jp/contests/{contest_id}/tasks"
+
+
+class _AtCoderTasksHTMLParser(HTMLParser):
+    def __init__(self, contest_id: str):
+        super().__init__()
+        self.expected_prefix = f"/contests/{contest_id}/tasks/"
+        self.in_tbody = False
+        self.in_tr = False
+        self.current_href: str | None = None
+        self.current_anchor_text: list[str] = []
+        self.current_links: list[tuple[str, str]] = []
+        self.rows: list[dict] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs_map = dict(attrs)
+        if tag == "tbody":
+            self.in_tbody = True
+            return
+        if not self.in_tbody:
+            return
+        if tag == "tr":
+            self.in_tr = True
+            self.current_links = []
+            return
+        if tag == "a" and self.in_tr:
+            href = attrs_map.get("href") or ""
+            if href.startswith(self.expected_prefix):
+                self.current_href = href
+                self.current_anchor_text = []
+
+    def handle_data(self, data):
+        if self.current_href is not None:
+            self.current_anchor_text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self.current_href is not None:
+            text = unescape("".join(self.current_anchor_text).strip())
+            if text:
+                self.current_links.append((self.current_href, text))
+            self.current_href = None
+            self.current_anchor_text = []
+            return
+        if tag == "tr" and self.in_tr:
+            self.in_tr = False
+            if len(self.current_links) >= 2:
+                href, index = self.current_links[0]
+                _name_href, name = self.current_links[1]
+                task_id = href.rsplit("/", 1)[-1]
+                if task_id and index and name:
+                    self.rows.append(
+                        {
+                            "index": index.upper(),
+                            "name": name,
+                            "problem_id": task_id,
+                            "tags": [],
+                        }
+                    )
+            self.current_links = []
+            return
+        if tag == "tbody":
+            self.in_tbody = False
+
+
+def _get_ac_contest_problems_from_tasks_page(contest_id: str) -> list[dict]:
+    url = AC_CONTEST_TASKS_URL.format(contest_id=contest_id)
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+
+    parser = _AtCoderTasksHTMLParser(contest_id)
+    parser.feed(response.text)
+
+    deduped: list[dict] = []
+    seen_problem_ids: set[str] = set()
+    for row in parser.rows:
+        problem_id = row.get("problem_id")
+        if not problem_id or problem_id in seen_problem_ids:
+            continue
+        seen_problem_ids.add(problem_id)
+        deduped.append(row)
+    return deduped
 
 
 def _fetch_json_with_fallback(urls: tuple[str, ...], timeout: int = 10):
@@ -219,9 +302,9 @@ def get_ac_contest_problems(contest_id: str) -> list[dict]:
     try:
         contest_map, titles = _load_ac_resources()
     except requests.RequestException:
-        return []
+        contest_map, titles = {}, {}
     except ValueError:
-        return []
+        contest_map, titles = {}, {}
 
     problem_ids = contest_map.get(contest_id, [])
     results = []
@@ -238,4 +321,10 @@ def get_ac_contest_problems(contest_id: str) -> list[dict]:
                 "tags": [],
             }
         )
-    return results
+    if results:
+        return results
+
+    try:
+        return _get_ac_contest_problems_from_tasks_page(contest_id)
+    except requests.RequestException:
+        return []

@@ -10,6 +10,7 @@ class _MockResponse:
     def __init__(self, status_code: int, payload):
         self.status_code = status_code
         self._payload = payload
+        self.text = payload if isinstance(payload, str) else ""
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -70,3 +71,39 @@ class ContestCatalogTests(SimpleTestCase):
         self.assertEqual(get_mock.call_args_list[1].args[0], contest_catalog.AC_CONTEST_PROBLEM_URLS[1])
         self.assertEqual(get_mock.call_args_list[2].args[0], contest_catalog.AC_PROBLEMS_URLS[0])
         self.assertEqual(get_mock.call_args_list[3].args[0], contest_catalog.AC_PROBLEMS_URLS[1])
+
+    def test_get_ac_contest_problems_falls_back_to_official_tasks_page(self):
+        contest_catalog._load_ac_resources.cache_clear()
+        tasks_html = """
+        <html>
+          <body>
+            <table>
+              <tbody>
+                <tr>
+                  <td class="text-center no-break"><a href="/contests/abc999/tasks/abc999_a">A</a></td>
+                  <td><a href="/contests/abc999/tasks/abc999_a">Product</a></td>
+                </tr>
+                <tr>
+                  <td class="text-center no-break"><a href="/contests/abc999/tasks/abc999_b">B</a></td>
+                  <td><a href="/contests/abc999/tasks/abc999_b">Editorials</a></td>
+                </tr>
+              </tbody>
+            </table>
+          </body>
+        </html>
+        """
+        responses = [
+            _MockResponse(403, {"message": "Forbidden"}),
+            _MockResponse(403, {"message": "Forbidden"}),
+            _MockResponse(200, tasks_html),
+        ]
+
+        with patch("core.services.contest_catalog.requests.get", side_effect=responses) as get_mock:
+            problems = contest_catalog.get_ac_contest_problems("abc999")
+
+        self.assertEqual(len(problems), 2)
+        self.assertEqual(problems[0]["problem_id"], "abc999_a")
+        self.assertEqual(problems[0]["index"], "A")
+        self.assertEqual(problems[0]["name"], "Product")
+        self.assertEqual(problems[1]["problem_id"], "abc999_b")
+        self.assertEqual(get_mock.call_args_list[2].args[0], contest_catalog.AC_CONTEST_TASKS_URL.format(contest_id="abc999"))

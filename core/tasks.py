@@ -1183,6 +1183,12 @@ def contests_problems_scheduler(
     )
 
     add_candidates(
+        Contest.objects.filter(problems_sync_status="FAILED")
+        .filter(Q(problems_next_sync_at__isnull=True) | Q(problems_next_sync_at__lte=now))
+        .order_by("-start_time")
+    )
+
+    add_candidates(
         Contest.objects.filter(ratings_summary_status="PARTIAL")
         .filter(Q(ratings_last_checked_at__isnull=True) | Q(ratings_last_checked_at__lte=now - timedelta(hours=partial_stale_hours)))
         .order_by("-start_time")

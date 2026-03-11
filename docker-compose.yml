@@ -65,7 +65,7 @@ services:
       app-init:
         condition: service_completed_successfully
     ports:
-      - "${WEB_PORT:-8000}:8000"
+      - "${WEB_BIND_HOST:-0.0.0.0}:${WEB_PORT:-8000}:8000"
     restart: unless-stopped
 
   worker:

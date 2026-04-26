@@ -59,12 +59,13 @@
                       class="inline-flex">
                     {% csrf_token %}
                     <button type="submit"
-                            class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50">
-                        <svg class="htmx-spinner hidden mr-1.5 h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                            class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/25 disabled:cursor-wait disabled:opacity-80"
+                            {% if auto_refresh %}disabled aria-busy="true"{% endif %}>
+                        <svg class="htmx-spinner mr-1.5 h-3 w-3 animate-spin {% if not auto_refresh %}hidden{% endif %}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                         </svg>
-                        Forcar update
+                        {% if auto_refresh %}Atualizando{% else %}Forcar update{% endif %}
                     </button>
                 </form>
             {% endif %}

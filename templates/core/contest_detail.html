@@ -32,16 +32,18 @@
             </a>
             {% if request.user.is_authenticated %}
                 <button type="button"
+                        id="contest-force-update-button"
                         hx-post="{% url 'force_contest_sync' platform=platform|lower contest_id=contest_id %}?detail=1"
                         hx-target="#contest-force-status"
                         hx-swap="innerHTML"
                         hx-disabled-elt="this"
-                        class="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg class="htmx-spinner hidden mr-1.5 h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        class="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 disabled:cursor-wait disabled:opacity-80"
+                        {% if detail_refresh_until %}disabled aria-busy="true"{% endif %}>
+                    <svg id="contest-force-update-spinner" class="htmx-spinner mr-1.5 h-3 w-3 animate-spin {% if not detail_refresh_until %}hidden{% endif %}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                     </svg>
-                    Forçar update
+                    <span id="contest-force-update-label">{% if detail_refresh_until %}Atualizando{% else %}Forçar update{% endif %}</span>
                 </button>
             {% endif %}
         </div>
@@ -133,11 +135,25 @@
 
         let timerId = null;
 
+        function setForceButtonActive(active) {
+            const button = document.getElementById("contest-force-update-button");
+            const spinner = document.getElementById("contest-force-update-spinner");
+            const label = document.getElementById("contest-force-update-label");
+            if (!button || !spinner || !label) {
+                return;
+            }
+            button.disabled = active;
+            button.setAttribute("aria-busy", active ? "true" : "false");
+            spinner.classList.toggle("hidden", !active);
+            label.textContent = active ? "Atualizando" : "Forçar update";
+        }
+
         function stopRefresh() {
             if (timerId) {
                 window.clearInterval(timerId);
                 timerId = null;
             }
+            setForceButtonActive(false);
         }
 
         function scheduleNoProblemsReload(untilMs) {
@@ -170,8 +186,14 @@
             stopRefresh();
             const until = Number(untilMs || 0);
             if (!url || !until || Number.isNaN(until)) {
+                setForceButtonActive(false);
                 return;
             }
+            if (Date.now() >= until) {
+                setForceButtonActive(false);
+                return;
+            }
+            setForceButtonActive(true);
             const tick = function () {
                 if (Date.now() >= until) {
                     stopRefresh();

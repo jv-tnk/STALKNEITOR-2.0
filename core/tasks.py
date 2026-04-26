@@ -26,6 +26,7 @@ from .models import (
 from .services.api_client import CodeforcesClient, AtCoderClient
 from .services.clist_client import ClistClient
 from .services.contest_catalog import (
+    _get_cf_problemset_map,
     get_ac_contest_problems,
     get_ac_contests,
     get_cf_contest_problems,
@@ -357,6 +358,71 @@ def _find_cf_split_round_alias_via_clist_name(problem_url: str) -> dict | None:
         }
 
     return None
+
+
+def _apply_official_cf_rating(problem: ContestProblem, rating: int, *, now=None) -> None:
+    now = now or timezone.now()
+    cache, _ = ProblemRatingCache.objects.get_or_create(
+        problem_url=problem.problem_url,
+        defaults={"platform": "CF", "status": "OK"},
+    )
+    cache.platform = "CF"
+    cache.cf_rating = int(rating)
+    cache.status = "OK"
+    cache.rating_fetched_at = now
+    _update_effective_rating(cache)
+    cache.save(update_fields=[
+        "platform",
+        "cf_rating",
+        "status",
+        "rating_fetched_at",
+        "rating_source",
+        "effective_rating",
+    ])
+
+    ContestProblem.objects.filter(id=problem.id).update(
+        cf_rating=int(rating),
+        rating_status="OK",
+        rating_last_ok_at=now,
+        rating_attempts=0,
+    )
+    update_scores_for_problem_url("CF", problem.problem_url)
+
+
+def _hydrate_cf_ratings_from_problemset(limit: int | None = None) -> dict:
+    limit = limit or int(getattr(settings, "CF_RATING_HYDRATE_LIMIT", 5000))
+    limit = max(0, min(limit, 5000))
+    if limit <= 0:
+        return {"hydrated": 0, "contests_touched": 0}
+
+    candidates = list(
+        ContestProblem.objects.select_related("contest")
+        .filter(platform="CF")
+        .filter(rating_status__in=["MISSING", "TEMP_FAIL", "QUEUED", "NOT_FOUND"])
+        .order_by("-contest__start_time", "order")[:limit]
+    )
+    if not candidates:
+        return {"hydrated": 0, "contests_touched": 0}
+
+    problemset_map = _get_cf_problemset_map()
+    now = timezone.now()
+    hydrated = 0
+    touched_contests: set[int] = set()
+    for problem in candidates:
+        rating = problem.cf_rating
+        if rating is None and problem.contest:
+            mapped = problemset_map.get(f"{problem.contest.contest_id}:{problem.index_label}")
+            rating = mapped.get("rating") if mapped else None
+        if rating is None:
+            continue
+
+        _apply_official_cf_rating(problem, int(rating), now=now)
+        touched_contests.add(problem.contest_id)
+        hydrated += 1
+
+    if touched_contests:
+        _refresh_contest_rating_summary(list(touched_contests))
+    return {"hydrated": hydrated, "contests_touched": len(touched_contests)}
 
 
 def _heal_cf_split_round_aliases(limit: int = 400) -> dict:
@@ -1222,12 +1288,44 @@ def sync_contest_problems(platform: str, contest_id: str) -> dict:
         updates = []
         for cp in contest_problem_qs:
             cache = cache_map.get(cp.problem_url)
-            if cache and cp.cf_rating is not None and cache.cf_rating != cp.cf_rating:
-                cache.cf_rating = cp.cf_rating
+            if cp.platform == "CF" and cp.cf_rating is not None and not cache:
+                cache = ProblemRatingCache(
+                    platform="CF",
+                    problem_url=cp.problem_url,
+                    cf_rating=cp.cf_rating,
+                    status="OK",
+                    rating_fetched_at=now,
+                )
                 _update_effective_rating(cache)
-                cache.save(update_fields=["cf_rating", "effective_rating", "rating_source"])
+                cache.save()
+                cache_map[cp.problem_url] = cache
+            elif cp.platform == "CF" and cp.cf_rating is not None and cache:
+                cache_update_fields = set()
+                if cache.platform != "CF":
+                    cache.platform = "CF"
+                    cache_update_fields.add("platform")
+                if cache.cf_rating != cp.cf_rating:
+                    cache.cf_rating = cp.cf_rating
+                    cache_update_fields.add("cf_rating")
+                if cache.status != "OK":
+                    cache.status = "OK"
+                    cache_update_fields.add("status")
+                if "status" in cache_update_fields or not cache.rating_fetched_at or not _is_cache_fresh(cache):
+                    cache.rating_fetched_at = now
+                    cache_update_fields.add("rating_fetched_at")
 
-            if cache and cache.effective_rating is not None and _is_cache_fresh(cache):
+                effective_before = (cache.effective_rating, cache.rating_source)
+                _update_effective_rating(cache)
+                if effective_before != (cache.effective_rating, cache.rating_source):
+                    cache_update_fields.update(["effective_rating", "rating_source"])
+                if cache_update_fields:
+                    cache.save(update_fields=list(cache_update_fields))
+
+            if (
+                cache
+                and cache.effective_rating is not None
+                and ((cp.platform == "CF" and cp.cf_rating is not None) or _is_cache_fresh(cache))
+            ):
                 cp.rating_status = "OK"
                 cp.rating_last_ok_at = cache.rating_fetched_at or now
             elif cache and cache.status == "NOT_FOUND":
@@ -1427,12 +1525,17 @@ def ratings_backfill_scheduler(
     ttl_hours = getattr(settings, "CLIST_CACHE_TTL_HOURS", 24)
     stale_before = now - timedelta(hours=ttl_hours)
     conflict_heal = _heal_conflicting_cf_cache_entries()
+    cf_rating_hydration = _hydrate_cf_ratings_from_problemset()
     alias_heal = _heal_cf_split_round_aliases()
 
     # Heal a bad state produced by older versions where cache.status="OK" but rating is null.
     # Those should be re-queued, otherwise contests can show "ready" while the UI has no rating.
     invalid_urls = list(
-        ProblemRatingCache.objects.filter(status="OK", clist_rating__isnull=True)
+        ProblemRatingCache.objects.filter(
+            status="OK",
+            clist_rating__isnull=True,
+            effective_rating__isnull=True,
+        )
         .values_list("problem_url", flat=True)[:2000]
     )
     if invalid_urls:
@@ -1449,6 +1552,7 @@ def ratings_backfill_scheduler(
     # Heal contests where ContestProblem says OK but cache is missing or lacks effective rating.
     ok_urls = list(
         ContestProblem.objects.filter(rating_status="OK")
+        .exclude(platform="CF", cf_rating__isnull=False)
         .values_list("problem_url", flat=True)[:2000]
     )
     if ok_urls:
@@ -1470,6 +1574,7 @@ def ratings_backfill_scheduler(
 
     stale_urls = list(
         ProblemRatingCache.objects.filter(status="OK", rating_fetched_at__lt=stale_before)
+        .exclude(platform="CF", cf_rating__isnull=False)
         .values_list("problem_url", flat=True)[:200]
     )
     if stale_urls:
@@ -1568,9 +1673,10 @@ def ratings_backfill_scheduler(
 
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "ratings_backfill_scheduler enqueued=%s reset_attempts=%s alias_healed=%s conflicts_ids=%s conflicts_urls=%s backlog=%s duration_ms=%s",
+        "ratings_backfill_scheduler enqueued=%s reset_attempts=%s cf_hydrated=%s alias_healed=%s conflicts_ids=%s conflicts_urls=%s backlog=%s duration_ms=%s",
         enqueued,
         reset_attempts_count,
+        cf_rating_hydration.get("hydrated", 0),
         alias_heal.get("healed", 0),
         conflict_heal.get("conflicting_problem_ids", 0),
         conflict_heal.get("conflicting_urls", 0),
@@ -1582,6 +1688,8 @@ def ratings_backfill_scheduler(
         "enqueued": enqueued,
         "backlog": total_backlog,
         "reset_attempts": reset_attempts_count,
+        "cf_ratings_hydrated": cf_rating_hydration.get("hydrated", 0),
+        "cf_ratings_contests_touched": cf_rating_hydration.get("contests_touched", 0),
         "alias_healed": alias_heal.get("healed", 0),
         "alias_contests_touched": alias_heal.get("contests_touched", 0),
         "conflicting_problem_ids": conflict_heal.get("conflicting_problem_ids", 0),
@@ -1653,6 +1761,19 @@ def _apply_clist_result(cache: ProblemRatingCache, result: dict, *, _deferred_co
             "effective_rating",
             "status",
         ])
+        ContestProblem.objects.filter(problem_url=cache.problem_url).update(
+            rating_status="OK",
+            rating_last_ok_at=cache.rating_fetched_at,
+            rating_attempts=0,
+        )
+        _notify_contests()
+        update_scores_for_problem_url(cache.platform, cache.problem_url)
+        return "OK"
+
+    if cache.platform == "CF" and cache.cf_rating is not None:
+        cache.status = "OK"
+        _update_effective_rating(cache)
+        cache.save(update_fields=["status", "rating_fetched_at", "rating_source", "effective_rating"])
         ContestProblem.objects.filter(problem_url=cache.problem_url).update(
             rating_status="OK",
             rating_last_ok_at=cache.rating_fetched_at,
@@ -1743,9 +1864,23 @@ def process_rating_fetch_jobs(limit: int = 10) -> dict:
             cache.save(update_fields=["platform"])
 
         _mark_rating_fetch_attempt(job.platform, job.problem_url, attempt_at=now)
-        problem_name = ContestProblem.objects.filter(
+        problem_row = ContestProblem.objects.filter(
             platform=job.platform, problem_url=job.problem_url,
-        ).values_list("name", flat=True).first()
+        ).only("id", "name", "cf_rating", "problem_url").first()
+        if cache.platform == "CF" and problem_row and problem_row.cf_rating is not None:
+            _apply_official_cf_rating(problem_row, int(problem_row.cf_rating), now=now)
+            deferred_contest_ids.update(
+                ContestProblem.objects.filter(problem_url=job.problem_url)
+                .values_list("contest_id", flat=True)
+                .distinct()
+            )
+            job.status = "DONE"
+            job.next_retry_at = None
+            job.save(update_fields=["status", "next_retry_at"])
+            processed += 1
+            continue
+
+        problem_name = problem_row.name if problem_row else None
         result = ClistClient.fetch_problem_rating(
             cache.platform,
             cache.problem_url,

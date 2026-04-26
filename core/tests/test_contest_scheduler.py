@@ -6,8 +6,14 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from core.models import Contest, PerfilAluno
-from core.tasks import contests_problems_scheduler, sync_contest_problems, sync_contests
+from core.models import Contest, ContestProblem, PerfilAluno, ProblemRatingCache, RatingFetchJob
+from core.tasks import (
+    contests_problems_scheduler,
+    process_rating_fetch_jobs,
+    ratings_backfill_scheduler,
+    sync_contest_problems,
+    sync_contests,
+)
 
 
 class ContestSchedulerTests(TestCase):
@@ -186,6 +192,166 @@ class ContestSchedulerTests(TestCase):
 
         self.assertEqual(result["status"], "no_problems")
         release_mock.assert_called_once_with("sync_contest_problems:CF:2060")
+
+    @patch("core.tasks._release_lock")
+    @patch("core.tasks._acquire_lock", return_value=True)
+    @patch("core.tasks.get_cf_contest_problems")
+    def test_problem_sync_promotes_official_cf_rating_over_old_cache_status(self, problems_mock, _lock_mock, release_mock):
+        start_time = timezone.now() - timedelta(days=1)
+        contest = Contest.objects.create(
+            platform="CF",
+            contest_id="2063",
+            title="Codeforces Round Cache Heal",
+            start_time=start_time,
+            duration_seconds=7200,
+            year=start_time.year,
+            problems_sync_status="NEW",
+        )
+        problem_url = "https://codeforces.com/contest/2063/problem/A"
+        old_fetch_time = timezone.now() - timedelta(days=5)
+        ProblemRatingCache.objects.create(
+            platform="CF",
+            problem_url=problem_url,
+            status="NOT_FOUND",
+            rating_fetched_at=old_fetch_time,
+        )
+        problems_mock.return_value = [
+            {
+                "index": "A",
+                "name": "Official Rating Heal",
+                "rating": 1700,
+                "tags": ["dp"],
+            }
+        ]
+
+        result = sync_contest_problems("CF", "2063")
+
+        problem = ContestProblem.objects.get(contest=contest, problem_url=problem_url)
+        cache = ProblemRatingCache.objects.get(problem_url=problem_url)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(problem.rating_status, "OK")
+        self.assertEqual(problem.cf_rating, 1700)
+        self.assertEqual(cache.status, "OK")
+        self.assertEqual(cache.effective_rating, 1700)
+        self.assertEqual(cache.rating_source, "cf")
+        self.assertGreater(cache.rating_fetched_at, old_fetch_time)
+        release_mock.assert_called_once_with("sync_contest_problems:CF:2063")
+
+    @patch("core.tasks.update_scores_for_problem_url")
+    @patch("core.tasks._get_cf_problemset_map")
+    def test_ratings_backfill_hydrates_cf_rating_from_official_problemset(self, problemset_mock, _scores_mock):
+        start_time = timezone.now() - timedelta(days=1)
+        contest = Contest.objects.create(
+            platform="CF",
+            contest_id="2061",
+            title="Codeforces Round Rated",
+            start_time=start_time,
+            duration_seconds=7200,
+            year=start_time.year,
+            problems_sync_status="SYNCED",
+        )
+        problem = ContestProblem.objects.create(
+            contest=contest,
+            platform="CF",
+            order=1,
+            index_label="A",
+            name="Official Rating Problem",
+            problem_url="https://codeforces.com/contest/2061/problem/A",
+            rating_status="MISSING",
+        )
+        problemset_mock.return_value = {
+            "2061:A": {"contest_id": "2061", "index": "A", "name": "Official Rating Problem", "rating": 1300, "tags": []}
+        }
+
+        result = ratings_backfill_scheduler(limit=5, cooldown_minutes=0)
+
+        problem.refresh_from_db()
+        cache = ProblemRatingCache.objects.get(problem_url=problem.problem_url)
+        self.assertEqual(result["cf_ratings_hydrated"], 1)
+        self.assertEqual(problem.cf_rating, 1300)
+        self.assertEqual(problem.rating_status, "OK")
+        self.assertEqual(cache.effective_rating, 1300)
+        self.assertEqual(cache.rating_source, "cf")
+        self.assertFalse(RatingFetchJob.objects.filter(problem_url=problem.problem_url).exists())
+
+    @patch("core.tasks._get_cf_problemset_map", return_value={})
+    def test_ratings_backfill_does_not_stale_official_cf_rating(self, _problemset_mock):
+        start_time = timezone.now() - timedelta(days=10)
+        contest = Contest.objects.create(
+            platform="CF",
+            contest_id="2064",
+            title="Codeforces Round Official Stale",
+            start_time=start_time,
+            duration_seconds=7200,
+            year=start_time.year,
+            problems_sync_status="SYNCED",
+        )
+        problem = ContestProblem.objects.create(
+            contest=contest,
+            platform="CF",
+            order=1,
+            index_label="A",
+            name="Official Rating Stays",
+            problem_url="https://codeforces.com/contest/2064/problem/A",
+            cf_rating=1400,
+            rating_status="OK",
+            rating_last_ok_at=timezone.now() - timedelta(days=5),
+        )
+        ProblemRatingCache.objects.create(
+            platform="CF",
+            problem_url=problem.problem_url,
+            cf_rating=1400,
+            effective_rating=1400,
+            rating_source="cf",
+            status="OK",
+            rating_fetched_at=timezone.now() - timedelta(days=5),
+        )
+
+        ratings_backfill_scheduler(limit=5, cooldown_minutes=0)
+
+        problem.refresh_from_db()
+        self.assertEqual(problem.rating_status, "OK")
+        self.assertFalse(RatingFetchJob.objects.filter(problem_url=problem.problem_url).exists())
+
+    @patch("core.tasks.update_scores_for_problem_url")
+    @patch("core.tasks.ClistClient.fetch_problem_rating")
+    def test_rating_fetch_job_uses_existing_cf_rating_without_clist(self, clist_mock, _scores_mock):
+        start_time = timezone.now() - timedelta(days=1)
+        contest = Contest.objects.create(
+            platform="CF",
+            contest_id="2062",
+            title="Codeforces Round Cached",
+            start_time=start_time,
+            duration_seconds=7200,
+            year=start_time.year,
+            problems_sync_status="SYNCED",
+        )
+        problem = ContestProblem.objects.create(
+            contest=contest,
+            platform="CF",
+            order=1,
+            index_label="A",
+            name="Cached Official Rating",
+            problem_url="https://codeforces.com/contest/2062/problem/A",
+            cf_rating=1500,
+            rating_status="QUEUED",
+        )
+        job = RatingFetchJob.objects.create(
+            platform="CF",
+            problem_url=problem.problem_url,
+            status="QUEUED",
+        )
+
+        result = process_rating_fetch_jobs(limit=1)
+
+        problem.refresh_from_db()
+        job.refresh_from_db()
+        cache = ProblemRatingCache.objects.get(problem_url=problem.problem_url)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(job.status, "DONE")
+        self.assertEqual(problem.rating_status, "OK")
+        self.assertEqual(cache.effective_rating, 1500)
+        clist_mock.assert_not_called()
 
 
 class ContestAutoSyncViewTests(TestCase):

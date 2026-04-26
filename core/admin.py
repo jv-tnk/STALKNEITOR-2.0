@@ -217,16 +217,16 @@ class SubmissaoAdmin(admin.ModelAdmin):
 
 @admin.register(ProblemRatingCache)
 class ProblemRatingCacheAdmin(SuperuserOnlyAdmin):
-    list_display = ('platform', 'problem_url', 'clist_rating', 'status', 'rating_fetched_at')
-    list_filter = ('platform', 'status')
+    list_display = ('platform', 'problem_url', 'clist_rating', 'cf_rating', 'provisional_rating', 'effective_rating', 'rating_source', 'status', 'rating_fetched_at')
+    list_filter = ('platform', 'status', 'rating_source')
     search_fields = ('problem_url', 'clist_problem_id')
     ordering = ('-rating_fetched_at',)
 
 
 @admin.register(ScoreEvent)
 class ScoreEventAdmin(SuperuserOnlyAdmin):
-    list_display = ('aluno', 'platform', 'points_awarded', 'raw_rating', 'normalized_rating', 'solved_at')
-    list_filter = ('platform', 'reason')
+    list_display = ('aluno', 'platform', 'points_awarded', 'raw_rating', 'rating_source', 'rating_is_provisional', 'normalized_rating', 'solved_at')
+    list_filter = ('platform', 'reason', 'rating_source', 'rating_is_provisional')
     search_fields = ('aluno__user__username', 'problem_url')
     ordering = ('-solved_at',)
 

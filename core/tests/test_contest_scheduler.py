@@ -6,8 +6,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from core.models import Contest, ContestProblem, PerfilAluno, ProblemRatingCache, RatingFetchJob
+from core.models import Contest, ContestProblem, PerfilAluno, ProblemRatingCache, RatingFetchJob, ScoreEvent, Submissao
 from core.tasks import (
+    _hydrate_provisional_ratings,
     contests_problems_scheduler,
     process_rating_fetch_jobs,
     ratings_backfill_scheduler,
@@ -312,6 +313,128 @@ class ContestSchedulerTests(TestCase):
         problem.refresh_from_db()
         self.assertEqual(problem.rating_status, "OK")
         self.assertFalse(RatingFetchJob.objects.filter(problem_url=problem.problem_url).exists())
+
+    @override_settings(ENABLE_PROVISIONAL_RATINGS=True)
+    def test_provisional_backfill_estimates_atcoder_and_marks_score_event(self):
+        start_time = timezone.now() - timedelta(days=1)
+        contest = Contest.objects.create(
+            platform="AC",
+            contest_id="abc300",
+            title="AtCoder Beginner Contest 300",
+            start_time=start_time,
+            duration_seconds=7200,
+            year=start_time.year,
+            problems_sync_status="SYNCED",
+        )
+        problem_url = "https://atcoder.jp/contests/abc300/tasks/abc300_d"
+        ContestProblem.objects.create(
+            contest=contest,
+            platform="AC",
+            order=4,
+            index_label="D",
+            name="AABCC",
+            problem_url=problem_url,
+            rating_status="MISSING",
+        )
+        user = User.objects.create_user(username="partial_ac", password="StrongPass123!")
+        student = PerfilAluno.objects.create(user=user)
+        submission = Submissao.objects.create(
+            aluno=student,
+            plataforma="AC",
+            contest_id="abc300",
+            problem_index="D",
+            verdict="AC",
+            submission_time=timezone.now(),
+            problem_name="abc300_d",
+            external_id="partial-ac-1",
+        )
+        event = ScoreEvent.objects.create(
+            aluno=student,
+            platform="AC",
+            submission=submission,
+            problem_url=problem_url,
+            solved_at=submission.submission_time,
+        )
+
+        result = _hydrate_provisional_ratings(limit=10)
+
+        cache = ProblemRatingCache.objects.get(problem_url=problem_url)
+        event.refresh_from_db()
+        self.assertEqual(result["hydrated"], 1)
+        self.assertEqual(cache.rating_source, "provisional")
+        self.assertEqual(cache.effective_rating, cache.provisional_rating)
+        self.assertIsNotNone(cache.provisional_confidence)
+        self.assertEqual(event.raw_rating, cache.provisional_rating)
+        self.assertEqual(event.rating_source, "provisional")
+        self.assertTrue(event.rating_is_provisional)
+        self.assertEqual(event.points_cf_raw, 0)
+        self.assertGreater(event.points_ac_raw, 0)
+
+    @override_settings(ENABLE_PROVISIONAL_RATINGS=True)
+    @patch("core.tasks.ClistClient.fetch_problem_rating")
+    def test_real_clist_rating_replaces_provisional_score_event(self, clist_mock):
+        start_time = timezone.now() - timedelta(days=1)
+        contest = Contest.objects.create(
+            platform="AC",
+            contest_id="abc301",
+            title="AtCoder Beginner Contest 301",
+            start_time=start_time,
+            duration_seconds=7200,
+            year=start_time.year,
+            problems_sync_status="SYNCED",
+        )
+        problem_url = "https://atcoder.jp/contests/abc301/tasks/abc301_e"
+        ContestProblem.objects.create(
+            contest=contest,
+            platform="AC",
+            order=5,
+            index_label="E",
+            name="Pac-Takahashi",
+            problem_url=problem_url,
+            rating_status="QUEUED",
+        )
+        user = User.objects.create_user(username="partial_replace_ac", password="StrongPass123!")
+        student = PerfilAluno.objects.create(user=user)
+        submission = Submissao.objects.create(
+            aluno=student,
+            plataforma="AC",
+            contest_id="abc301",
+            problem_index="E",
+            verdict="AC",
+            submission_time=timezone.now(),
+            problem_name="abc301_e",
+            external_id="partial-ac-2",
+        )
+        event = ScoreEvent.objects.create(
+            aluno=student,
+            platform="AC",
+            submission=submission,
+            problem_url=problem_url,
+            solved_at=submission.submission_time,
+        )
+        _hydrate_provisional_ratings(limit=10)
+        event.refresh_from_db()
+        self.assertTrue(event.rating_is_provisional)
+        clist_mock.return_value = {"status": "OK", "rating": 1600, "problem_id": "abc301_e"}
+        job = RatingFetchJob.objects.create(
+            platform="AC",
+            problem_url=problem_url,
+            status="QUEUED",
+        )
+
+        result = process_rating_fetch_jobs(limit=1)
+
+        cache = ProblemRatingCache.objects.get(problem_url=problem_url)
+        event.refresh_from_db()
+        job.refresh_from_db()
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(job.status, "DONE")
+        self.assertEqual(cache.clist_rating, 1600)
+        self.assertEqual(cache.effective_rating, 1600)
+        self.assertEqual(cache.rating_source, "clist")
+        self.assertEqual(event.raw_rating, 1600)
+        self.assertEqual(event.rating_source, "clist")
+        self.assertFalse(event.rating_is_provisional)
 
     @patch("core.tasks.update_scores_for_problem_url")
     @patch("core.tasks.ClistClient.fetch_problem_rating")

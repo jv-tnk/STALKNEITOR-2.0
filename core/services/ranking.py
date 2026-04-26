@@ -37,6 +37,7 @@ class RankingRow:
     activity_days: int = 0
     activity_solves: int = 0
     rating_updated_at: datetime | None = None
+    provisional_solves: int = 0
 
 
 def _tier_for_points(points: int) -> tuple[str, str | None, int, str, str, int]:
@@ -181,6 +182,7 @@ def build_ranking(
                 tier_range=tier_range,
                 tier_color=tier_color,
                 points_to_next=points_to_next,
+                provisional_solves=0,
             )
         )
 
@@ -254,6 +256,7 @@ def build_rating_ranking(
                 tier_color=tier_color,
                 points_to_next=points_to_next,
                 rating_updated_at=updated_at,
+                provisional_solves=0,
             )
         )
 
@@ -360,6 +363,7 @@ def build_activity_ranking(
                 points_to_next=points_to_next,
                 activity_days=points,
                 activity_solves=solves,
+                provisional_solves=0,
             )
         )
 

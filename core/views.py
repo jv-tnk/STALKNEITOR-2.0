@@ -50,6 +50,7 @@ from .services.ranking import (
 from .services.scoring import calculate_points
 from .services.problem_urls import build_problem_url_from_fields
 from .services.rating_conversion import convert_ac_to_cf, get_conversion_status
+from .services.provisional_ratings import is_provisional_source
 from .services.season import get_active_season_range
 from .services.training import (
     build_ac_suggestions,
@@ -328,7 +329,10 @@ def _rating_badge(rating, status, platform):
 
     text_color = "#ffffff"
 
-    return f"{int(rating)}", color, fill_percent, text_color
+    label = f"{int(rating)}"
+    if status == "PROVISIONAL":
+        label = f"≈ {label}"
+    return label, color, fill_percent, text_color
 
 
 def _resolve_effective_rating(problem: ContestProblem | None, cache: ProblemRatingCache | None) -> tuple[int | None, str]:
@@ -341,7 +345,7 @@ def _resolve_effective_rating(problem: ContestProblem | None, cache: ProblemRati
     if cache:
         if cache.effective_rating is not None:
             rating = int(cache.effective_rating)
-            status = "OK"
+            status = "PROVISIONAL" if is_provisional_source(cache.rating_source) else "OK"
         else:
             status = cache.status or "TEMP_FAIL"
             if status == "OK":
@@ -525,6 +529,7 @@ def _build_points_rows_from_events(events, category: str, scope: str, turma_id: 
         points_ac=Sum("points_ac_raw"),
         points_general=Sum("points_general_cf_equiv"),
         solves=Count("id"),
+        provisional=Count("id", filter=Q(rating_is_provisional=True)),
     )
     agg_map = {row["aluno_id"]: row for row in agg}
     alunos = (
@@ -568,6 +573,7 @@ def _build_points_rows_from_events(events, category: str, scope: str, turma_id: 
         row.tier_color = tier_color
         row.points_to_next = points_to_next
         row.activity_solves = int(data.get("solves") or 0)
+        row.provisional_solves = int(data.get("provisional") or 0)
         rows.append(row)
     rows.sort(key=lambda r: (-r.points, r.aluno.user.username))
     for idx, row in enumerate(rows, start=1):
@@ -1596,7 +1602,7 @@ def _profile_build_heatmap_weeks(
     return weeks, max_value
 
 
-def _score_event_points_display(event: ScoreEvent) -> tuple[int, bool]:
+def _score_event_points_display(event: ScoreEvent) -> tuple[int, bool, bool]:
     """
     Return the best available points value for profile UI and whether it's pending.
     Pending means the solve still has no rating, so points may appear as zero temporarily.
@@ -1610,9 +1616,9 @@ def _score_event_points_display(event: ScoreEvent) -> tuple[int, bool]:
     ]
     for value in candidates:
         if value is not None and value > 0:
-            return int(value), False
+            return int(value), False, bool(event.rating_is_provisional)
     pending = event.raw_rating is None
-    return 0, pending
+    return 0, pending, bool(event.rating_is_provisional)
 
 
 @login_required
@@ -1685,7 +1691,7 @@ def user_profile_tab(request, username, tab):
         )
         for ev in recent_solves:
             ev.submission_url = _submission_url(ev.platform, ev.contest_id or ev.submission.contest_id, ev.submission.external_id)
-            ev.points_display, ev.points_pending = _score_event_points_display(ev)
+            ev.points_display, ev.points_pending, ev.points_provisional = _score_event_points_display(ev)
 
         solved_cf = ScoreEvent.objects.filter(aluno=student, platform="CF").count()
         solved_ac = ScoreEvent.objects.filter(aluno=student, platform="AC").count()
@@ -3262,8 +3268,15 @@ def ranking_list(request):
             events = _filter_events_to_season_contests(events, season_start_dt, season_end_dt)
         solves = events.values("aluno_id").annotate(count=Count("id"))
         solves_map = {row["aluno_id"]: row["count"] for row in solves}
+        provisional = (
+            events.filter(rating_is_provisional=True)
+            .values("aluno_id")
+            .annotate(count=Count("id"))
+        )
+        provisional_map = {row["aluno_id"]: row["count"] for row in provisional}
         for row in rows:
             row.activity_solves = solves_map.get(row.aluno.id, 0)
+            row.provisional_solves = provisional_map.get(row.aluno.id, 0)
 
     if q:
         rows = [
@@ -3553,6 +3566,7 @@ def _build_contest_rows(contests_page: list[Contest]) -> tuple[list[dict], int, 
         for cache in ProblemRatingCache.objects.filter(problem_url__in=problem_urls).only(
             "problem_url",
             "effective_rating",
+            "rating_source",
             "status",
         )
     }
@@ -3638,6 +3652,7 @@ def _build_contest_rows(contests_page: list[Contest]) -> tuple[list[dict], int, 
         for problem in problems_by_contest.get(contest.id, []):
             cache = cache_by_url.get(problem.problem_url)
             rating, status = _resolve_effective_rating(problem, cache)
+            rating_is_provisional = status == "PROVISIONAL"
             if rating is not None:
                 ready_count += 1
             rating_label, rating_color, rating_fill, rating_text = _rating_badge(
@@ -3668,17 +3683,19 @@ def _build_contest_rows(contests_page: list[Contest]) -> tuple[list[dict], int, 
                     "rating_color": rating_color,
                     "rating_fill": rating_fill,
                     "rating_text": rating_text,
+                    "rating_is_provisional": rating_is_provisional,
                 }
             )
 
         total_problems += len(problems)
         total_count = len(problems)
         avg_rating = None
+        provisional_count = sum(1 for item in problems if item.get("rating_is_provisional"))
         if ratings:
             avg_rating = int(round(sum(ratings) / len(ratings)))
         avg_label, avg_color, avg_fill, avg_text = _rating_badge(
             avg_rating,
-            "OK" if avg_rating is not None else "TEMP_FAIL",
+            "PROVISIONAL" if provisional_count and avg_rating is not None else ("OK" if avg_rating is not None else "TEMP_FAIL"),
             contest.platform,
         )
         if total_count == 0:
@@ -3689,6 +3706,9 @@ def _build_contest_rows(contests_page: list[Contest]) -> tuple[list[dict], int, 
             ratings_status = "NONE"
         elif ready_count < total_count:
             avg_display = f"Media parcial ({ready_count}/{total_count})"
+            ratings_status = "PARTIAL"
+        elif provisional_count:
+            avg_display = f"Media {avg_label} · parcial"
             ratings_status = "PARTIAL"
         else:
             avg_display = f"Media {avg_label}"
@@ -4926,6 +4946,7 @@ def _build_contest_problem_cards(contest: Contest, platform: str) -> list[dict]:
         for rating_cache in ProblemRatingCache.objects.filter(problem_url__in=problem_urls).only(
             "problem_url",
             "effective_rating",
+            "rating_source",
             "status",
         )
     }
@@ -4934,6 +4955,7 @@ def _build_contest_problem_cards(contest: Contest, platform: str) -> list[dict]:
     for problem in problems:
         rating_cache = cache_by_url.get(problem.problem_url)
         rating, status = _resolve_effective_rating(problem, rating_cache)
+        rating_is_provisional = status == "PROVISIONAL"
         rating_label, rating_color, rating_fill, rating_text = _rating_badge(
             rating,
             status,
@@ -4949,6 +4971,7 @@ def _build_contest_problem_cards(contest: Contest, platform: str) -> list[dict]:
                 "rating_color": rating_color,
                 "rating_fill": rating_fill,
                 "rating_text": rating_text,
+                "rating_is_provisional": rating_is_provisional,
                 "tags": sorted(tags_by_index.get(problem.index_label, set())),
             }
         )
@@ -5427,7 +5450,7 @@ def _resolve_manual_problem_metadata(
     )
     cache = (
         ProblemRatingCache.objects.filter(problem_url=problem_url)
-        .only("effective_rating", "status")
+        .only("effective_rating", "rating_source", "status")
         .first()
     )
 
@@ -5484,6 +5507,7 @@ def _bulk_manual_problem_metadata(
         for row in ProblemRatingCache.objects.filter(problem_url__in=urls).values(
             "problem_url",
             "effective_rating",
+            "rating_source",
         )
     }
 

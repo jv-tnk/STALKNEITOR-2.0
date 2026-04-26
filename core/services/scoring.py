@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from django.db.models import F, Sum
+from django.db.models import F, Q, Sum
 from django.utils import timezone
 
 from core.models import Contest, ContestProblem, ScoreEvent, Submissao, UserScoreAgg
 from core.services.problem_urls import build_problem_url_from_fields, normalize_problem_url
 from core.services.problem_ratings import get_or_schedule_problem_rating
+from core.services.provisional_ratings import is_provisional_source, update_effective_rating
 from core.services.rating_stats import get_platform_percentile
 from core.services.rating_conversion import convert_ac_to_cf
 
@@ -151,15 +152,16 @@ def process_submission_for_scoring(submission: Submissao) -> ScoreEvent | None:
         problem_name=submission.problem_name,
     )
 
-    if cache.cf_rating is None and submission.plataforma == "CF":
+    if submission.plataforma == "CF":
         cp = ContestProblem.objects.filter(problem_url=problem_url).only("cf_rating").first()
         if cp and cp.cf_rating is not None:
             cache.cf_rating = cp.cf_rating
-            cache.effective_rating = cache.effective_rating or cp.cf_rating
-            cache.rating_source = "cf" if cache.effective_rating == cp.cf_rating else cache.rating_source
+            update_effective_rating(cache)
             cache.save(update_fields=["cf_rating", "effective_rating", "rating_source"])
 
     raw_rating = cache.effective_rating if cache.effective_rating is not None else None
+    rating_source = cache.rating_source or "none"
+    rating_is_provisional = is_provisional_source(rating_source)
     base_points = calculate_points(raw_rating)
     percentile = get_platform_percentile(
         submission.plataforma,
@@ -204,6 +206,8 @@ def process_submission_for_scoring(submission: Submissao) -> ScoreEvent | None:
         points_general_norm=points_general,
         points_general_cf_equiv=points_general_cf,
         rating_used_cf_equiv=rating_used_cf_equiv,
+        rating_source=rating_source,
+        rating_is_provisional=rating_is_provisional,
         points_awarded=points_general_cf or points_general,
         in_contest=in_contest,
         contest_platform=contest.platform if contest else submission.plataforma,
@@ -232,8 +236,7 @@ def update_scores_for_problem_url(platform: str, problem_url: str) -> None:
     pending_events = ScoreEvent.objects.filter(
         platform=platform,
         problem_url=normalized_url,
-        raw_rating__isnull=True,
-    )
+    ).filter(Q(raw_rating__isnull=True) | Q(rating_is_provisional=True))
     if not pending_events.exists():
         return
 
@@ -241,6 +244,8 @@ def update_scores_for_problem_url(platform: str, problem_url: str) -> None:
     if cache.effective_rating is None:
         return
 
+    rating_source = cache.rating_source or "none"
+    rating_is_provisional = is_provisional_source(rating_source)
     base_points = calculate_points(cache.effective_rating)
     percentile = get_platform_percentile(
         platform,
@@ -280,6 +285,8 @@ def update_scores_for_problem_url(platform: str, problem_url: str) -> None:
         event.points_general_norm = points_general
         event.points_general_cf_equiv = points_general_cf
         event.rating_used_cf_equiv = rating_used_cf_equiv
+        event.rating_source = rating_source
+        event.rating_is_provisional = rating_is_provisional
         event.points_awarded = points_general_cf or points_general
         event.save(update_fields=[
             "raw_rating",
@@ -290,6 +297,8 @@ def update_scores_for_problem_url(platform: str, problem_url: str) -> None:
             "points_general_norm",
             "points_general_cf_equiv",
             "rating_used_cf_equiv",
+            "rating_source",
+            "rating_is_provisional",
             "points_awarded",
         ])
         apply_score_delta(

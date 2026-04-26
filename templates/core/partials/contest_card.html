@@ -99,6 +99,12 @@
                               style="--rating-color: {{ problem.rating_color }}; --rating-fill: {{ problem.rating_fill }}%; --rating-text: {{ problem.rating_text }};">
                             <span>Rating {{ problem.rating_label }}</span>
                         </span>
+                        {% if problem.rating_is_provisional %}
+                            <span class="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-200"
+                                  title="Estimado até CF/CLIST publicar o rating definitivo">
+                                parcial
+                            </span>
+                        {% endif %}
                         {% if problem.url %}
                             <a href="{{ problem.url }}" target="_blank" class="text-xs text-slate-400 hover:text-slate-200">
                                 Link do problema

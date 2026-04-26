@@ -4,6 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.models import ProblemRatingCache, RatingFetchJob
+from core.services.provisional_ratings import apply_provisional_rating, update_effective_rating
 
 
 def get_or_schedule_problem_rating(
@@ -26,6 +27,8 @@ def get_or_schedule_problem_rating(
 
     # compute effective rating based on available sources
     _update_effective_rating(cache)
+    if cache.effective_rating is None:
+        apply_provisional_rating(cache)
 
     ttl_hours = getattr(settings, "CLIST_CACHE_TTL_HOURS", 24)
     if cache.rating_fetched_at and cache.rating_fetched_at >= timezone.now() - timedelta(hours=ttl_hours):
@@ -40,16 +43,7 @@ def get_or_schedule_problem_rating(
 
 
 def _update_effective_rating(cache: ProblemRatingCache) -> None:
-    effective = None
-    source = "none"
-    if cache.clist_rating is not None:
-        effective = cache.clist_rating
-        source = "clist"
-    elif cache.cf_rating is not None:
-        effective = cache.cf_rating
-        source = "cf"
-    cache.effective_rating = effective
-    cache.rating_source = source
+    update_effective_rating(cache)
     cache.save(update_fields=["effective_rating", "rating_source"])
 
 

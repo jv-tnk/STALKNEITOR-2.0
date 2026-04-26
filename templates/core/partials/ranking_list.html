@@ -18,7 +18,7 @@
         </div>
         <div class="text-sm text-slate-400 space-y-2">
             <p>Contamos apenas o <strong>Primeiro AC</strong> por problema.</p>
-            <p>O rating do problema vem do CLIST.</p>
+            <p>O rating do problema vem do CLIST; enquanto ele não estiver disponível, CF e AC podem usar rating parcial estimado e marcado com ≈.</p>
             <p><strong>CF:</strong> pontos do solve = rating do problema.</p>
             <p><strong>AC:</strong> rating do problema é convertido para escala CF-like e então somado como pontos.</p>
             <p>Solves feitos durante o contest recebem <strong>+10%</strong> de bônus.</p>
@@ -175,7 +175,14 @@
                             </a>
                             <div class="text-xs text-slate-500">CF {{ row.aluno.handle_codeforces|default:"-" }} · AC {{ row.aluno.handle_atcoder|default:"-" }}</div>
                         </td>
-                        <td class="px-4 py-3 text-indigo-300 font-semibold">{{ row.points }}</td>
+                        <td class="px-4 py-3 text-indigo-300 font-semibold">
+                            <div>{{ row.points }}</div>
+                            {% if mode == 'points' and row.provisional_solves %}
+                            <div class="mt-1 text-[11px] font-medium text-cyan-300" title="Inclui pontos calculados com rating parcial; serão recalculados quando o rating definitivo chegar.">
+                                {{ row.provisional_solves }} parcial{% if row.provisional_solves > 1 %}s{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-3 text-slate-300">
                             {% if row.rank == 1 %}
                                 -
@@ -215,7 +222,12 @@
                     </div>
                     <div class="text-xs text-slate-500">CF {{ row.aluno.handle_codeforces|default:"-" }} · AC {{ row.aluno.handle_atcoder|default:"-" }}</div>
                 </div>
-                <div class="text-lg text-indigo-300 font-semibold">{{ row.points }}</div>
+                <div class="text-right">
+                    <div class="text-lg text-indigo-300 font-semibold">{{ row.points }}</div>
+                    {% if mode == 'points' and row.provisional_solves %}
+                    <div class="text-[11px] font-medium text-cyan-300">{{ row.provisional_solves }} parcial{% if row.provisional_solves > 1 %}s{% endif %}</div>
+                    {% endif %}
+                </div>
             </div>
             <div class="mt-2 flex items-center justify-between text-xs text-slate-400">
                 <span>Δ {% if row.delta > 0 %}↑{{ row.delta }}{% elif row.delta < 0 %}↓{{ row.delta|cut:"-" }}{% else %}→0{% endif %}</span>

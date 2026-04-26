@@ -254,7 +254,7 @@ def _build_problem_pool(
             rating = int(cache.effective_rating)
             rating_source = cache.rating_source or "none"
             has_clist = cache.clist_rating is not None
-            rating_rank = 3 if rating_source == "clist" else 2
+            rating_rank = 3 if rating_source == "clist" else (1 if rating_source == "provisional" else 2)
         elif cf_rating is not None:
             rating = int(cf_rating)
             rating_source = "cf"
@@ -966,6 +966,7 @@ def build_training_inventory(
             "problem_url",
             "effective_rating",
             "clist_rating",
+            "rating_source",
         )
     }
 

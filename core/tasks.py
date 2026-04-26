@@ -37,6 +37,10 @@ from .services.contest_classification import (
     classify_codeforces_division,
 )
 from .services.problem_urls import build_problem_url_from_fields, normalize_problem_url
+from .services.provisional_ratings import (
+    apply_provisional_rating,
+    update_effective_rating,
+)
 from .services.scoring import (
     process_submission_for_scoring,
     recalculate_points_for_platform,
@@ -419,6 +423,60 @@ def _hydrate_cf_ratings_from_problemset(limit: int | None = None) -> dict:
         _apply_official_cf_rating(problem, int(rating), now=now)
         touched_contests.add(problem.contest_id)
         hydrated += 1
+
+    if touched_contests:
+        _refresh_contest_rating_summary(list(touched_contests))
+    return {"hydrated": hydrated, "contests_touched": len(touched_contests)}
+
+
+def _hydrate_provisional_ratings(limit: int | None = None) -> dict:
+    limit = limit or int(getattr(settings, "PROVISIONAL_RATING_HYDRATE_LIMIT", 5000))
+    limit = max(0, min(limit, 10000))
+    if limit <= 0:
+        return {"hydrated": 0, "contests_touched": 0}
+
+    candidates = list(
+        ContestProblem.objects.select_related("contest")
+        .filter(platform__in=["CF", "AC"])
+        .filter(rating_status__in=["MISSING", "TEMP_FAIL", "QUEUED", "NOT_FOUND"])
+        .order_by("-contest__start_time", "order")[:limit]
+    )
+    if not candidates:
+        return {"hydrated": 0, "contests_touched": 0}
+
+    now = timezone.now()
+    refresh_before = now - timedelta(hours=int(getattr(settings, "PROVISIONAL_RATING_REFRESH_HOURS", 12)))
+    urls = [problem.problem_url for problem in candidates if problem.problem_url]
+    cache_map = {
+        cache.problem_url: cache
+        for cache in ProblemRatingCache.objects.filter(problem_url__in=urls)
+    }
+
+    hydrated = 0
+    touched_contests: set[int] = set()
+    for problem in candidates:
+        cache = cache_map.get(problem.problem_url)
+        if cache is None:
+            cache = ProblemRatingCache.objects.create(
+                platform=problem.platform,
+                problem_url=problem.problem_url,
+                status="TEMP_FAIL",
+            )
+            cache_map[problem.problem_url] = cache
+        elif cache.platform != problem.platform:
+            cache.platform = problem.platform
+            cache.save(update_fields=["platform"])
+
+        if (
+            cache.rating_source == "provisional"
+            and cache.provisional_updated_at
+            and cache.provisional_updated_at >= refresh_before
+        ):
+            continue
+        if apply_provisional_rating(cache, problem=problem):
+            update_scores_for_problem_url(problem.platform, problem.problem_url)
+            touched_contests.add(problem.contest_id)
+            hydrated += 1
 
     if touched_contests:
         _refresh_contest_rating_summary(list(touched_contests))
@@ -1321,13 +1379,31 @@ def sync_contest_problems(platform: str, contest_id: str) -> dict:
                 if cache_update_fields:
                     cache.save(update_fields=list(cache_update_fields))
 
+            if cache is None:
+                cache = ProblemRatingCache.objects.create(
+                    platform=cp.platform,
+                    problem_url=cp.problem_url,
+                    status="TEMP_FAIL",
+                )
+                cache_map[cp.problem_url] = cache
+            if cache.effective_rating is None or cache.rating_source == "provisional":
+                if apply_provisional_rating(cache, problem=cp):
+                    update_scores_for_problem_url(cp.platform, cp.problem_url)
+
             if (
                 cache
                 and cache.effective_rating is not None
-                and ((cp.platform == "CF" and cp.cf_rating is not None) or _is_cache_fresh(cache))
+                and (
+                    (cp.platform == "CF" and cp.cf_rating is not None)
+                    or cache.rating_source == "provisional"
+                    or _is_cache_fresh(cache)
+                )
             ):
-                cp.rating_status = "OK"
-                cp.rating_last_ok_at = cache.rating_fetched_at or now
+                if cache.rating_source == "provisional":
+                    cp.rating_status = cache.status if cache.status in {"NOT_FOUND", "TEMP_FAIL"} else "MISSING"
+                else:
+                    cp.rating_status = "OK"
+                    cp.rating_last_ok_at = cache.rating_fetched_at or now
             elif cache and cache.status == "NOT_FOUND":
                 cp.rating_status = "NOT_FOUND"
             elif cache and cache.status == "TEMP_FAIL":
@@ -1526,6 +1602,7 @@ def ratings_backfill_scheduler(
     stale_before = now - timedelta(hours=ttl_hours)
     conflict_heal = _heal_conflicting_cf_cache_entries()
     cf_rating_hydration = _hydrate_cf_ratings_from_problemset()
+    provisional_hydration = _hydrate_provisional_ratings()
     alias_heal = _heal_cf_split_round_aliases()
 
     # Heal a bad state produced by older versions where cache.status="OK" but rating is null.
@@ -1673,10 +1750,11 @@ def ratings_backfill_scheduler(
 
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "ratings_backfill_scheduler enqueued=%s reset_attempts=%s cf_hydrated=%s alias_healed=%s conflicts_ids=%s conflicts_urls=%s backlog=%s duration_ms=%s",
+        "ratings_backfill_scheduler enqueued=%s reset_attempts=%s cf_hydrated=%s provisional_hydrated=%s alias_healed=%s conflicts_ids=%s conflicts_urls=%s backlog=%s duration_ms=%s",
         enqueued,
         reset_attempts_count,
         cf_rating_hydration.get("hydrated", 0),
+        provisional_hydration.get("hydrated", 0),
         alias_heal.get("healed", 0),
         conflict_heal.get("conflicting_problem_ids", 0),
         conflict_heal.get("conflicting_urls", 0),
@@ -1690,6 +1768,8 @@ def ratings_backfill_scheduler(
         "reset_attempts": reset_attempts_count,
         "cf_ratings_hydrated": cf_rating_hydration.get("hydrated", 0),
         "cf_ratings_contests_touched": cf_rating_hydration.get("contests_touched", 0),
+        "provisional_ratings_hydrated": provisional_hydration.get("hydrated", 0),
+        "provisional_ratings_contests_touched": provisional_hydration.get("contests_touched", 0),
         "alias_healed": alias_heal.get("healed", 0),
         "alias_contests_touched": alias_heal.get("contests_touched", 0),
         "conflicting_problem_ids": conflict_heal.get("conflicting_problem_ids", 0),
@@ -1702,16 +1782,7 @@ def ratings_backfill_scheduler(
 
 
 def _update_effective_rating(cache: ProblemRatingCache) -> None:
-    effective = None
-    source = "none"
-    if cache.clist_rating is not None:
-        effective = cache.clist_rating
-        source = "clist"
-    elif cache.cf_rating is not None:
-        effective = cache.cf_rating
-        source = "cf"
-    cache.effective_rating = effective
-    cache.rating_source = source
+    update_effective_rating(cache)
 
 
 def _apply_clist_result(cache: ProblemRatingCache, result: dict, *, _deferred_contest_ids: set | None = None) -> str:

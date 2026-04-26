@@ -69,6 +69,11 @@
                                 <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-200">
                                     Pendente
                                 </span>
+                            {% elif ev.points_provisional %}
+                                <span class="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-200"
+                                      title="Pontuação estimada até CF/CLIST publicar o rating definitivo">
+                                    ≈ {{ ev.points_display }} parcial
+                                </span>
                             {% else %}
                                 {{ ev.points_display }}
                             {% endif %}

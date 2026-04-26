@@ -80,6 +80,14 @@
                                   style="--rating-color: {{ problem.rating_color }}; --rating-fill: {{ problem.rating_fill }}%; --rating-text: {{ problem.rating_text }};">
                                 <span>Rating {{ problem.rating_label }}</span>
                             </span>
+                            {% if problem.rating_is_provisional %}
+                                <div class="mt-1">
+                                    <span class="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-200"
+                                          title="Estimado até CF/CLIST publicar o rating definitivo">
+                                        parcial
+                                    </span>
+                                </div>
+                            {% endif %}
                         </td>
                         <td class="py-4 px-4 align-top">
                             <div class="flex flex-wrap gap-2">

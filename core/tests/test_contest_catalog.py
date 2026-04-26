@@ -23,7 +23,54 @@ class _MockResponse:
 class ContestCatalogTests(SimpleTestCase):
     def tearDown(self):
         contest_catalog._load_ac_resources.cache_clear()
+        contest_catalog._get_cf_problemset_map.cache_clear()
         super().tearDown()
+
+    def test_get_cf_contest_problems_falls_back_to_problemset_when_standings_requires_auth(self):
+        responses = [
+            _MockResponse(400, {"status": "FAILED", "comment": "contestId: You have to be authenticated to use this method"}),
+            _MockResponse(
+                200,
+                {
+                    "status": "OK",
+                    "result": {
+                        "problems": [
+                            {
+                                "contestId": 2222,
+                                "index": "B",
+                                "name": "Second Problem",
+                                "rating": 1200,
+                                "tags": ["greedy"],
+                            },
+                            {
+                                "contestId": 2222,
+                                "index": "A",
+                                "name": "First Problem",
+                                "rating": 800,
+                                "tags": ["implementation"],
+                            },
+                            {
+                                "contestId": 9999,
+                                "index": "A",
+                                "name": "Other Contest",
+                                "rating": 900,
+                                "tags": [],
+                            },
+                        ]
+                    },
+                },
+            ),
+        ]
+
+        with patch("core.services.contest_catalog.tracked_get", side_effect=responses) as get_mock:
+            problems = contest_catalog.get_cf_contest_problems("2222")
+
+        self.assertEqual([problem["index"] for problem in problems], ["A", "B"])
+        self.assertEqual(problems[0]["name"], "First Problem")
+        self.assertEqual(problems[0]["rating"], 800)
+        self.assertEqual(problems[1]["tags"], ["greedy"])
+        self.assertEqual(get_mock.call_args_list[0].args[0], f"{contest_catalog.CF_API_BASE}/contest.standings")
+        self.assertEqual(get_mock.call_args_list[1].args[0], contest_catalog.CF_PROBLEMSET_URL)
 
     def test_get_ac_contests_falls_back_to_s3_when_primary_fails(self):
         responses = [

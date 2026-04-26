@@ -68,6 +68,13 @@ def _acquire_lock(lock_key: str, ttl_seconds: int = 600) -> bool:
         return False
 
 
+def _release_lock(lock_key: str) -> None:
+    try:
+        _get_redis_client().delete(lock_key)
+    except Exception:
+        logger.exception("Failed to release lock %s", lock_key)
+
+
 def _set_task_health(task_name: str, payload: dict, ttl_seconds: int = 2 * 24 * 3600) -> None:
     data = {
         "task": task_name,
@@ -1088,6 +1095,7 @@ def sync_contest_problems(platform: str, contest_id: str) -> dict:
         contest_id=str(contest_id),
     ).first()
     if not contest:
+        _release_lock(lock_key)
         return {"status": "contest_not_found"}
 
     if platform == "CF":
@@ -1101,6 +1109,7 @@ def sync_contest_problems(platform: str, contest_id: str) -> dict:
             now=timezone.now(),
             no_problems=True,
         )
+        _release_lock(lock_key)
         return {
             "status": "no_problems",
             "contest_id": contest_id,
@@ -1168,6 +1177,7 @@ def sync_contest_problems(platform: str, contest_id: str) -> dict:
             platform,
             contest_id,
         )
+        _release_lock(lock_key)
         return {
             "status": "no_valid_problems",
             "contest_id": contest_id,
@@ -1247,6 +1257,7 @@ def sync_contest_problems(platform: str, contest_id: str) -> dict:
         updated,
         duration_ms,
     )
+    _release_lock(lock_key)
     return {
         "status": "ok",
         "platform": platform,

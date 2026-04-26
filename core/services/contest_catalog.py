@@ -200,21 +200,23 @@ def get_cf_contest_problems(contest_id: str) -> list[dict]:
     if not contest_id:
         return []
 
+    problems = []
     url = f"{CF_API_BASE}/contest.standings"
     params = {"contestId": contest_id, "from": 1, "count": 1}
     try:
         response = tracked_get(url, params=params, timeout=10)
         response.raise_for_status()
         payload = response.json()
+        if payload.get("status") == "OK":
+            problems = payload.get("result", {}).get("problems", []) or []
     except requests.RequestException:
-        return []
+        problems = []
     except ValueError:
-        return []
+        problems = []
 
-    if payload.get("status") != "OK":
-        return []
+    if not problems:
+        return _get_cf_contest_problems_from_problemset(contest_id)
 
-    problems = payload.get("result", {}).get("problems", []) or []
     cf_map = _get_cf_problemset_map()
     results = []
     for problem in problems:
@@ -240,6 +242,33 @@ def get_cf_contest_problems(contest_id: str) -> list[dict]:
             }
         )
     return results
+
+
+def _cf_index_sort_key(index: str):
+    index = str(index or "")
+    letters = "".join(ch for ch in index if ch.isalpha()).upper()
+    digits = "".join(ch for ch in index if ch.isdigit())
+    return (letters, int(digits or 0), index)
+
+
+def _get_cf_contest_problems_from_problemset(contest_id: str) -> list[dict]:
+    contest_key = str(contest_id)
+    problems = [
+        problem
+        for problem in _get_cf_problemset_map().values()
+        if problem.get("contest_id") == contest_key
+    ]
+    problems.sort(key=lambda problem: _cf_index_sort_key(problem.get("index") or ""))
+    return [
+        {
+            "index": str(problem.get("index") or ""),
+            "name": problem.get("name") or str(problem.get("index") or ""),
+            "tags": problem.get("tags") or [],
+            "rating": problem.get("rating"),
+        }
+        for problem in problems
+        if problem.get("index")
+    ]
 
 
 @lru_cache(maxsize=1)
@@ -268,6 +297,9 @@ def _get_cf_problemset_map() -> dict[str, dict]:
             continue
         key = f"{contest_id}:{index}"
         mapped[key] = {
+            "contest_id": str(contest_id),
+            "index": str(index),
+            "name": problem.get("name") or str(index),
             "rating": problem.get("rating"),
             "tags": problem.get("tags") or [],
         }

@@ -325,12 +325,15 @@ body {
 /* HTMX spinner inline (usar com hx-indicator) */
 .htmx-spinner {
     display: none;
+    animation: spin .65s linear infinite;
+}
+.htmx-spinner:not(svg) {
     width: 0.95rem; height: 0.95rem;
     border: 2px solid currentColor;
     border-right-color: transparent;
     border-radius: 999px;
-    animation: spin .65s linear infinite;
 }
+.htmx-spinner:not(.hidden) { display: inline-block; }
 .htmx-request > .htmx-spinner,
 .htmx-spinner.htmx-indicator.htmx-request { display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }

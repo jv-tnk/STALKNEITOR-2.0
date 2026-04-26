@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Contest, PerfilAluno
-from core.tasks import contests_problems_scheduler, sync_contests
+from core.tasks import contests_problems_scheduler, sync_contest_problems, sync_contests
 
 
 class ContestSchedulerTests(TestCase):
@@ -165,6 +165,27 @@ class ContestSchedulerTests(TestCase):
         delay_mock.assert_called_once_with("CF", "1999")
         self.assertEqual(result["enqueued"], 1)
         self.assertEqual(result["cf"], 1)
+
+    @patch("core.tasks._release_lock")
+    @patch("core.tasks._acquire_lock", return_value=True)
+    @patch("core.tasks.get_cf_contest_problems", return_value=[])
+    def test_problem_sync_releases_lock_after_no_problem_result(self, _problems_mock, _lock_mock, release_mock):
+        start_time = timezone.now() - timedelta(hours=1)
+        Contest.objects.create(
+            platform="CF",
+            contest_id="2060",
+            title="Codeforces Round Empty",
+            start_time=start_time,
+            duration_seconds=7200,
+            year=start_time.year,
+            problems_sync_status="NEW",
+            problems_next_sync_at=None,
+        )
+
+        result = sync_contest_problems("CF", "2060")
+
+        self.assertEqual(result["status"], "no_problems")
+        release_mock.assert_called_once_with("sync_contest_problems:CF:2060")
 
 
 class ContestAutoSyncViewTests(TestCase):

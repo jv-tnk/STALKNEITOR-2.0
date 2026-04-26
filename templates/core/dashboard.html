@@ -1,17 +1,22 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="space-y-5">
-    <div class="flex flex-col gap-4 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 md:flex-row md:items-end md:justify-between">
+<section class="space-y-6">
+    <div class="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/70 p-6 md:flex-row md:items-center md:justify-between">
         <div>
-            <div class="eyebrow mb-2">// dashboard</div>
-            <h1 class="text-2xl font-semibold text-slate-100">Visão geral</h1>
-            <p class="text-sm text-slate-400 mt-1">Atividade, contests e ranking rápido.</p>
+            <h1 class="text-3xl font-bold text-slate-100">Dashboard</h1>
+            <p class="text-sm text-slate-400">Visão geral de atividade, contests e ranking rápido.</p>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-            <span class="badge badge-success badge-dot">live</span>
-            <a href="{% url 'contests_overview' %}" class="btn btn-sm btn-ghost">Ver contests →</a>
-            <a href="{% url 'ranking' %}" class="btn btn-sm btn-ghost">Abrir ranking →</a>
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span class="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-emerald-200">
+                Atualizado em tempo real
+            </span>
+            <a href="{% url 'contests_overview' %}" class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-slate-200 hover:text-emerald-200">
+                Ver contests
+            </a>
+            <a href="{% url 'ranking' %}" class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-slate-200 hover:text-indigo-200">
+                Abrir ranking
+            </a>
         </div>
     </div>
 
@@ -19,27 +24,27 @@
 
     {% include "core/partials/user_sync_status.html" %}
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div class="stat">
-            <div class="stat-label">alunos</div>
-            <div class="stat-value">{{ total_students }}</div>
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Alunos cadastrados</div>
+            <div class="mt-2 text-3xl font-bold text-slate-100">{{ total_students }}</div>
         </div>
-        <div class="stat" data-tone="success">
-            <div class="stat-label">ativos · 7d</div>
-            <div class="stat-value">{{ active_students_7d }}</div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Ativos nos últimos 7d</div>
+            <div class="mt-2 text-3xl font-bold text-emerald-300">{{ active_students_7d }}</div>
         </div>
-        <div class="stat" data-tone="accent">
-            <div class="stat-label">solves · 7d</div>
-            <div class="stat-value">{{ solves_7d }}</div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Solves em 7d</div>
+            <div class="mt-2 text-3xl font-bold text-indigo-300">{{ solves_7d }}</div>
         </div>
-        <div class="stat">
-            <div class="stat-label">solves · 30d</div>
-            <div class="stat-value">{{ solves_30d }}</div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Solves em 30d</div>
+            <div class="mt-2 text-3xl font-bold text-slate-100">{{ solves_30d }}</div>
         </div>
-        <div class="stat" data-tone="warning">
-            <div class="stat-label">solves · temporada</div>
-            <div class="stat-value">{{ solves_season }}</div>
-            <div class="stat-hint">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div class="text-xs text-slate-500">Solves na temporada</div>
+            <div class="mt-2 text-3xl font-bold text-amber-200">{{ solves_season }}</div>
+            <div class="mt-1 text-[11px] text-slate-500">
                 {% if active_season and active_season.name %}
                     {{ active_season.name }}
                 {% elif active_season %}
@@ -51,37 +56,45 @@
         </div>
     </div>
 
-    <div class="grid gap-5 lg:grid-cols-3">
-        <div class="space-y-5 lg:col-span-2">
-            <div class="card p-5">
-                <div class="section-title mb-4">
-                    <span>Contests recentes</span>
-                    <a href="{% url 'contests_overview' %}" class="text-xs text-slate-400 hover:text-[color:var(--accent)] no-underline">ver todos</a>
+    <div class="grid gap-6 lg:grid-cols-3">
+        <div class="space-y-6 lg:col-span-2">
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-100">Contests recentes</h2>
+                        <p class="text-xs text-slate-400">Status de problemas e ratings.</p>
+                    </div>
+                    <a href="{% url 'contests_overview' %}" class="text-xs text-emerald-300 hover:text-emerald-200">Ver todos</a>
                 </div>
-                <div class="space-y-2.5">
+                <div class="mt-4 space-y-3">
                     {% for row in contest_rows %}
-                        <div class="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-2)] p-3.5 hover:border-[color:var(--border-strong)] transition-colors">
+                        <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
                             <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div class="min-w-0">
-                                    <a href="{{ row.detail_url }}" class="text-sm font-semibold text-slate-100 hover:text-[color:var(--accent)]">
+                                <div>
+                                    <a href="{{ row.detail_url }}" class="text-sm font-semibold text-slate-100 hover:text-emerald-200">
                                         {{ row.contest.title }}
                                     </a>
-                                    <div class="font-mono text-[11px] text-slate-500 mt-0.5">
-                                        {{ row.contest.start_time|date:"Y-m-d H:i" }}
+                                    <div class="text-xs text-slate-500">
+                                        {{ row.contest.start_time|date:"d/m/Y H:i" }}
                                     </div>
                                 </div>
-                                <div class="flex flex-wrap items-center gap-1.5">
-                                    <span class="badge">{{ row.contest.platform }}</span>
-                                    <span class="badge {% if row.ratings_status == 'READY' %}badge-success{% elif row.ratings_status == 'PARTIAL' %}badge-warning{% endif %}">
-                                        ratings {{ row.ratings_ready }}/{{ row.problems_total }}
+                                <div class="flex flex-wrap items-center gap-2 text-xs">
+                                    <span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-slate-200">
+                                        {{ row.contest.platform }}
                                     </span>
+                                    <span class="rounded-full border {% if row.ratings_status == 'READY' %}border-emerald-500/40 bg-emerald-500/15 text-emerald-200{% elif row.ratings_status == 'PARTIAL' %}border-amber-500/40 bg-amber-500/15 text-amber-200{% else %}border-slate-700 bg-slate-800/60 text-slate-300{% endif %} px-3 py-1">
+                                        Ratings {{ row.ratings_ready }}/{{ row.problems_total }}
+                                    </span>
+                                    <a href="{{ row.detail_url }}" class="text-emerald-300 hover:text-emerald-200">Ver detalhes</a>
                                 </div>
                             </div>
-                            <div class="mt-3 flex items-center gap-3">
-                                <div class="h-[3px] flex-1 rounded-sm bg-[color:var(--surface-3)] overflow-hidden">
-                                    <div class="h-full {% if row.ratings_status == 'READY' %}bg-[color:var(--success)]{% elif row.ratings_status == 'PARTIAL' %}bg-[color:var(--warning)]{% else %}bg-slate-600{% endif %}" style="width: {{ row.ratings_percent }}%"></div>
+                            <div class="mt-3">
+                                <div class="h-2 w-full rounded-full bg-slate-800">
+                                    <div class="h-2 rounded-full {% if row.ratings_status == 'READY' %}bg-emerald-400{% elif row.ratings_status == 'PARTIAL' %}bg-amber-400{% else %}bg-slate-600{% endif %}" style="width: {{ row.ratings_percent }}%"></div>
                                 </div>
-                                <span class="font-mono text-[10px] text-slate-500 min-w-[3ch] text-right">{{ row.ratings_percent }}%</span>
+                                <div class="mt-2 text-[11px] text-slate-500">
+                                    {{ row.ratings_percent }}% ratings prontos
+                                </div>
                             </div>
                         </div>
                     {% empty %}
@@ -90,10 +103,13 @@
                 </div>
             </div>
 
-            <div class="card p-5">
-                <div class="section-title mb-4">
-                    <span>Atividade recente</span>
-                    <span class="eyebrow normal-case tracking-wide" title="Atualização automática">~30s</span>
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-100">Atividade recente</h2>
+                        <p class="text-xs text-slate-400">Últimas submissões registradas.</p>
+                    </div>
+                    <span class="text-xs text-slate-500">Atualiza a cada 30s</span>
                 </div>
                 <div id="dashboard-activity"
                      hx-get="{% url 'dashboard_activity' %}"
@@ -105,50 +121,50 @@
             </div>
         </div>
 
-        <div class="space-y-5">
-            <div class="card card-accent p-5">
-                <div class="section-title mb-3"><span>Top da temporada</span></div>
-                <p class="text-xs text-slate-400 mb-3">
-                    Pontos da temporada{% if active_season and active_season.name %} · <span class="font-mono text-slate-300">{{ active_season.name }}</span>{% endif %}
+        <div class="space-y-6">
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <h2 class="text-lg font-semibold text-slate-100">Top da temporada</h2>
+                <p class="text-xs text-slate-400">
+                    Ranking rápido por pontos da temporada
+                    {% if active_season and active_season.name %}• {{ active_season.name }}{% endif %}.
                 </p>
-                <ol class="space-y-1.5">
+                <div class="mt-4 space-y-3">
                     {% for row in top_students %}
-                        <li class="flex items-center gap-3 rounded border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2 text-sm">
-                            <span class="font-mono text-[11px] text-slate-500 w-5 text-right">{{ forloop.counter }}.</span>
-                            <span class="text-slate-200 truncate">{{ row.aluno.user.username }}</span>
-                            <span class="font-mono text-[color:var(--accent)] font-semibold ml-auto">{{ row.season_points_general_cf_equiv|default:0 }}</span>
-                        </li>
+                        <div class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm">
+                            <div class="text-slate-200">{{ row.aluno.user.username }}</div>
+                            <div class="text-indigo-300 font-semibold">{{ row.season_points_general_cf_equiv|default:0 }}</div>
+                        </div>
                     {% empty %}
-                        <li class="text-sm text-slate-400">Sem dados suficientes.</li>
+                        <div class="text-sm text-slate-400">Sem dados suficientes.</div>
                     {% endfor %}
-                </ol>
+                </div>
             </div>
 
-            <div class="card p-5">
-                <div class="section-title mb-3"><span>Seu resumo</span></div>
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <h2 class="text-lg font-semibold text-slate-100">Seu resumo</h2>
                 {% if my_agg %}
-                    <dl class="space-y-1.5 text-sm">
-                        <div class="flex items-center justify-between border-b border-dashed border-[color:var(--border)] pb-1.5">
-                            <dt class="text-slate-400">Pontos temporada</dt>
-                            <dd class="font-mono text-[color:var(--accent)] font-semibold">{{ my_agg.season_points_general_cf_equiv|default:0 }}</dd>
-                        </div>
-                        <div class="flex items-center justify-between border-b border-dashed border-[color:var(--border)] pb-1.5">
-                            <dt class="text-slate-400">Pontos CF</dt>
-                            <dd class="font-mono text-slate-100 font-semibold">{{ my_agg.season_points_cf_raw|default:0 }}</dd>
+                    <div class="mt-3 space-y-2 text-sm text-slate-300">
+                        <div class="flex items-center justify-between">
+                            <span>Pontos temporada</span>
+                            <span class="text-indigo-300 font-semibold">{{ my_agg.season_points_general_cf_equiv|default:0 }}</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <dt class="text-slate-400">Pontos AC</dt>
-                            <dd class="font-mono text-emerald-200 font-semibold">{{ my_agg.season_points_ac_raw|default:0 }}</dd>
+                            <span>Pontos CF temporada</span>
+                            <span class="text-slate-100 font-semibold">{{ my_agg.season_points_cf_raw|default:0 }}</span>
                         </div>
-                    </dl>
+                        <div class="flex items-center justify-between">
+                            <span>Pontos AC temporada</span>
+                            <span class="text-emerald-200 font-semibold">{{ my_agg.season_points_ac_raw|default:0 }}</span>
+                        </div>
+                    </div>
                 {% else %}
-                    <p class="text-sm text-slate-400">Sem dados pessoais ainda.</p>
+                    <p class="mt-3 text-sm text-slate-400">Sem dados pessoais ainda.</p>
                 {% endif %}
-                <a href="{% url 'ranking' %}" class="mt-4 inline-flex items-center gap-1 text-xs text-slate-400 hover:text-[color:var(--accent)]">
-                    Ver minha posição
-                    <svg viewBox="0 0 20 20" class="h-3 w-3" fill="currentColor"><path d="M7.05 4.55a.75.75 0 011.06 0l4.5 4.5a.75.75 0 010 1.06l-4.5 4.5a.75.75 0 11-1.06-1.06L11 10 7.05 6.05a.75.75 0 010-1.06z"/></svg>
+                <a href="{% url 'ranking' %}" class="mt-4 inline-flex text-xs text-emerald-300 hover:text-emerald-200">
+                    Ver minha posição no ranking
                 </a>
             </div>
+
         </div>
     </div>
 </section>

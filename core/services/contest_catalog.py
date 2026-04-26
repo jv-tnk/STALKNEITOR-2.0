@@ -5,6 +5,8 @@ from html.parser import HTMLParser
 
 import requests
 
+from .api_metrics import tracked_get
+
 
 CF_API_BASE = "https://codeforces.com/api"
 CF_CONTEST_LIST_URL = f"{CF_API_BASE}/contest.list"
@@ -87,7 +89,7 @@ class _AtCoderTasksHTMLParser(HTMLParser):
 
 def _get_ac_contest_problems_from_tasks_page(contest_id: str) -> list[dict]:
     url = AC_CONTEST_TASKS_URL.format(contest_id=contest_id)
-    response = requests.get(url, timeout=10)
+    response = tracked_get(url, timeout=10)
     response.raise_for_status()
 
     parser = _AtCoderTasksHTMLParser(contest_id)
@@ -108,7 +110,7 @@ def _fetch_json_with_fallback(urls: tuple[str, ...], timeout: int = 10):
     last_error = None
     for url in urls:
         try:
-            response = requests.get(url, timeout=timeout)
+            response = tracked_get(url, timeout=timeout)
             response.raise_for_status()
             return response.json()
         except (requests.RequestException, ValueError) as exc:
@@ -124,7 +126,7 @@ def get_cf_contests(year: int) -> list[dict]:
         return []
 
     try:
-        response = requests.get(CF_CONTEST_LIST_URL, timeout=10)
+        response = tracked_get(CF_CONTEST_LIST_URL, timeout=10)
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException:
@@ -201,7 +203,7 @@ def get_cf_contest_problems(contest_id: str) -> list[dict]:
     url = f"{CF_API_BASE}/contest.standings"
     params = {"contestId": contest_id, "from": 1, "count": 1}
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = tracked_get(url, params=params, timeout=10)
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException:
@@ -246,7 +248,7 @@ def _get_cf_problemset_map() -> dict[str, dict]:
     Build a map for (contestId:index) -> {rating, tags}
     """
     try:
-        response = requests.get(CF_PROBLEMSET_URL, timeout=15)
+        response = tracked_get(CF_PROBLEMSET_URL, timeout=15)
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException:

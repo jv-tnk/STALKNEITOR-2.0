@@ -4133,6 +4133,56 @@ def admin_panel(request):
             }
         )
 
+    # Task health data from Redis (4.1 - Observability)
+    task_health_data = []
+    try:
+        from core.tasks import _get_redis_client
+        _redis = _get_redis_client()
+        _th_keys = list(_redis.scan_iter(match="task_health:*", count=100))
+        for _key in sorted(_th_keys):
+            try:
+                _raw = _redis.get(_key)
+                if not _raw:
+                    continue
+                _data = json.loads(_raw)
+                _task_name = _key.decode().removeprefix("task_health:")
+                _entry = {"task_name": _task_name, "duration_ms": _data.get("duration_ms")}
+                _ran_at = _data.get("at")
+                if _ran_at:
+                    from datetime import datetime as _dt
+                    _parsed = _dt.fromisoformat(_ran_at)
+                    if _parsed.tzinfo is None:
+                        _parsed = timezone.make_aware(_parsed)
+                    _ago = int((timezone.now() - _parsed).total_seconds())
+                    _entry["ago_seconds"] = _ago
+                    if _ago < 60:
+                        _entry["ago_human"] = f"{_ago}s"
+                    elif _ago < 3600:
+                        _entry["ago_human"] = f"{_ago // 60}min"
+                    elif _ago < 86400:
+                        _entry["ago_human"] = f"{_ago // 3600}h"
+                    else:
+                        _entry["ago_human"] = f"{_ago // 86400}d"
+                # Build summary string from notable fields
+                _summary_parts = []
+                for _sk in ("enqueued", "processed", "runs", "backlog", "healed", "reset_attempts"):
+                    if _sk in _data and _data[_sk]:
+                        _summary_parts.append(f"{_sk}={_data[_sk]}")
+                _entry["summary"] = ", ".join(_summary_parts) if _summary_parts else _data.get("status", "")
+                task_health_data.append(_entry)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # API latency metrics (4.2 - Observability)
+    api_metrics = []
+    try:
+        from core.services.api_metrics import get_all_api_metrics
+        api_metrics = get_all_api_metrics()
+    except Exception:
+        pass
+
     return render(request, "core/admin_panel.html", {
         "error": error,
         "success": success,
@@ -4155,6 +4205,8 @@ def admin_panel(request):
         "api_catalog": api_catalog,
         "sync_health": sync_health,
         "season_history_rows": season_history_rows,
+        "task_health_data": task_health_data,
+        "api_metrics": api_metrics,
     })
 
 
@@ -4642,6 +4694,49 @@ def force_contest_sync(request, platform, contest_id):
     return _render_card(status, message, details, auto_refresh=auto_refresh)
 
 
+def _maybe_auto_enqueue_contest_problem_sync(contest: Contest) -> bool:
+    now = timezone.now()
+    if contest.start_time and contest.start_time > now:
+        return False
+
+    problem_count = ContestProblem.objects.filter(contest=contest).count()
+    if problem_count > 0 and contest.problems_sync_status == "SYNCED":
+        return False
+
+    if contest.problems_next_sync_at and contest.problems_next_sync_at > now:
+        return False
+
+    cooldown_key = f"contest_auto_sync:{contest.platform}:{contest.contest_id}"
+    if cache.get(cooldown_key):
+        return False
+
+    try:
+        from core.tasks import sync_contest_problems as sync_contest_problems_task
+
+        sync_contest_problems_task.delay(contest.platform, contest.contest_id)
+    except Exception:
+        return False
+
+    cache.set(cooldown_key, True, timeout=90)
+    refresh_until = int((now + timedelta(seconds=120)).timestamp() * 1000)
+    cache.set(f"contest_card_autorefresh:{contest.platform}:{contest.contest_id}", True, timeout=120)
+    cache.set(f"contest_detail_autorefresh:{contest.platform}:{contest.contest_id}", refresh_until, timeout=120)
+    cache.set(
+        f"contest_force_status:{contest.platform}:{contest.contest_id}",
+        {
+            "status": "warning",
+            "message": "Sincronizacao automatica acionada porque o contest ainda estava sem problemas ou marcado para retry.",
+            "details": {
+                "problem_count": problem_count,
+                "problems_sync_queued": True,
+            },
+            "auto_refresh": True,
+        },
+        timeout=120,
+    )
+    return True
+
+
 @login_required
 def contest_card_snippet(request, platform, contest_id):
     platform = (platform or "").upper()
@@ -4649,6 +4744,7 @@ def contest_card_snippet(request, platform, contest_id):
         raise Http404("Plataforma invalida.")
 
     contest = get_object_or_404(Contest, platform=platform, contest_id=str(contest_id))
+    _maybe_auto_enqueue_contest_problem_sync(contest)
     rows, _, _ = _build_contest_rows([contest])
     row = rows[0] if rows else _contest_row_fallback(contest)
 
@@ -4676,6 +4772,7 @@ def contest_problems_snippet(request, platform, contest_id):
         contest_id=str(contest_id),
     )
 
+    _maybe_auto_enqueue_contest_problem_sync(contest)
     items = _build_contest_problem_cards(contest, platform)
 
     return render(
@@ -4700,6 +4797,7 @@ def contest_detail(request, platform, contest_id):
         contest_id=str(contest_id),
     )
 
+    _maybe_auto_enqueue_contest_problem_sync(contest)
     problem_cards = _build_contest_problem_cards(contest, platform)
 
     chunk_size = 4

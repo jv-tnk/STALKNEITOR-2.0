@@ -256,6 +256,98 @@
         </div>
     </div>
 
+    <div class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <h2 class="text-lg font-semibold text-slate-100">Tasks Celery</h2>
+            <p class="text-xs text-slate-400">Status das tasks de sincronizacao (dados do Redis).</p>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-xs">
+                    <thead class="text-slate-400">
+                        <tr class="border-b border-slate-800">
+                            <th class="px-2 py-2">Task</th>
+                            <th class="px-2 py-2">Ultima execucao</th>
+                            <th class="px-2 py-2">Duracao</th>
+                            <th class="px-2 py-2">Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-200">
+                        {% for task in task_health_data %}
+                            <tr class="border-b border-slate-800/70 align-top">
+                                <td class="px-2 py-2 font-medium text-slate-100 break-all">{{ task.task_name }}</td>
+                                <td class="px-2 py-2">
+                                    {% if task.ago_human %}
+                                        <span class="{% if task.ago_seconds > 86400 %}text-rose-300{% elif task.ago_seconds > 7200 %}text-amber-300{% else %}text-slate-300{% endif %}">
+                                            {{ task.ago_human }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-slate-500">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-2 py-2">
+                                    {% if task.duration_ms is not None %}
+                                        <span class="{% if task.duration_ms > 30000 %}text-amber-300{% else %}text-slate-300{% endif %}">{{ task.duration_ms }} ms</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="px-2 py-2 text-slate-400 break-all">{{ task.summary }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="4" class="px-2 py-3 text-slate-500">Nenhuma task com dados de saude.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <h2 class="text-lg font-semibold text-slate-100">Metricas de API</h2>
+            <p class="text-xs text-slate-400">Latencia e taxa de erro das APIs externas.</p>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-xs">
+                    <thead class="text-slate-400">
+                        <tr class="border-b border-slate-800">
+                            <th class="px-2 py-2">API</th>
+                            <th class="px-2 py-2">Chamadas</th>
+                            <th class="px-2 py-2">Erros</th>
+                            <th class="px-2 py-2">Latencia</th>
+                            <th class="px-2 py-2">P95</th>
+                            <th class="px-2 py-2">Ultima</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-200">
+                        {% for m in api_metrics %}
+                            <tr class="border-b border-slate-800/70 align-top">
+                                <td class="px-2 py-2 font-medium text-slate-100">{{ m.api_name }}</td>
+                                <td class="px-2 py-2">{{ m.calls }} ({{ m.window }})</td>
+                                <td class="px-2 py-2">
+                                    <span class="{% if m.error_rate > 20 %}text-rose-300{% elif m.error_rate > 5 %}text-amber-300{% else %}text-slate-300{% endif %}">
+                                        {{ m.errors }} ({{ m.error_rate }}%)
+                                    </span>
+                                </td>
+                                <td class="px-2 py-2">{{ m.avg_ms }} ms</td>
+                                <td class="px-2 py-2">{{ m.p95_ms }} ms</td>
+                                <td class="px-2 py-2">
+                                    {% if m.last_call_ago_human %}
+                                        {{ m.last_call_ago_human }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-2 py-3 text-slate-500">Sem metricas de API coletadas.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
         <h2 class="text-lg font-semibold text-slate-100">Para que serve cada API</h2>
         <p class="text-xs text-slate-400">Resumo simples para qualquer pessoa entender o papel de cada integracao.</p>

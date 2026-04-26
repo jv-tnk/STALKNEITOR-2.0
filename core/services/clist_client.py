@@ -2,6 +2,8 @@ from typing import Any, Callable
 
 import requests
 from django.conf import settings
+
+from .api_metrics import tracked_get
 from urllib.parse import urlsplit
 import re
 
@@ -26,7 +28,7 @@ class ClistClient:
         url = f"{base_url}/problem/"
         timeout = getattr(settings, "CLIST_TIMEOUT_SECONDS", 10)
         try:
-            response = requests.get(url, params=params, timeout=timeout)
+            response = tracked_get(url, params=params, timeout=timeout)
         except requests.RequestException as exc:
             return {
                 "status": "TEMP_FAIL",

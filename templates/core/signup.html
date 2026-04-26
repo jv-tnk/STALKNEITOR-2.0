@@ -1,59 +1,111 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block content %}
-<div class="min-h-[70vh] flex items-center justify-center">
-    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-        <h2 class="text-xl font-semibold text-slate-100 mb-2">Criar conta</h2>
-        <p class="text-xs text-slate-400 mb-6">Cadastre-se para acompanhar seu progresso.</p>
+<div class="min-h-[75vh] grid place-items-center py-10">
+    <div class="w-full max-w-md">
+        <div class="flex flex-col items-center mb-6">
+            <img src="{% static 'img/logo.png' %}" alt="" class="h-14 w-14 opacity-90 mb-3" aria-hidden="true">
+            <div class="eyebrow">// auth · signup</div>
+        </div>
 
-        {% if errors %}
-            <div class="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                Corrija os campos destacados abaixo.
-            </div>
-        {% endif %}
+        <div class="card p-6">
+            <h1 class="text-lg font-semibold text-slate-100 mb-1">Criar conta</h1>
+            <p class="text-xs text-slate-400 mb-5">Cadastre-se para acompanhar seu progresso.</p>
 
-        <form method="post" class="space-y-4">
-            {% csrf_token %}
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Username</label>
-                <input type="text" name="username" class="w-full rounded-lg border {% if errors.username %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
-                {% if errors.username %}
-                    <p class="mt-1 text-xs text-rose-300">{{ errors.username }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Senha</label>
-                <input type="password" name="password1" class="w-full rounded-lg border {% if errors.password %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Confirmar senha</label>
-                <input type="password" name="password2" class="w-full rounded-lg border {% if errors.password %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
-                {% if errors.password %}
-                    <p class="mt-1 text-xs text-rose-300">{{ errors.password }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Handle Codeforces (opcional)</label>
-                <input type="text" name="cf_handle" class="w-full rounded-lg border {% if errors.cf_handle %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
-                {% if errors.cf_handle %}
-                    <p class="mt-1 text-xs text-rose-300">{{ errors.cf_handle }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">Handle AtCoder (opcional)</label>
-                <input type="text" name="ac_handle" class="w-full rounded-lg border {% if errors.ac_handle %}border-rose-500{% else %}border-slate-700{% endif %} bg-slate-950 px-3 py-2 text-sm text-slate-100">
-                {% if errors.ac_handle %}
-                    <p class="mt-1 text-xs text-rose-300">{{ errors.ac_handle }}</p>
-                {% endif %}
-            </div>
-            <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                Criar conta
-            </button>
-        </form>
+            {% if errors %}
+                <div class="mb-4 rounded-md border-l-2 border-l-[color:var(--danger)] border-y border-r border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2 text-xs text-rose-200">
+                    Corrija os campos destacados abaixo.
+                </div>
+            {% endif %}
 
-        <div class="mt-4 text-center text-xs text-slate-400">
-            Já tem conta? <a href="{% url 'login' %}" class="text-indigo-400 hover:text-indigo-300">Entrar</a>
+            <form method="post" class="space-y-3.5">
+                {% csrf_token %}
+                <div>
+                    <label for="su-username" class="label">username</label>
+                    <input id="su-username" type="text" name="username" autocomplete="username" autofocus
+                           class="input font-mono {% if errors.username %}!border-rose-500{% endif %}" spellcheck="false">
+                    {% if errors.username %}<p class="mt-1 text-xs text-rose-300">{{ errors.username }}</p>{% endif %}
+                </div>
+
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label for="su-pw1" class="label mb-0">senha</label>
+                            <button type="button" data-toggle-pw="su-pw1" class="text-[10px] text-slate-400 hover:text-[color:var(--accent)] font-mono uppercase tracking-wider">mostrar</button>
+                        </div>
+                        <input id="su-pw1" type="password" name="password1" autocomplete="new-password"
+                               class="input font-mono {% if errors.password %}!border-rose-500{% endif %}">
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label for="su-pw2" class="label mb-0">confirmar</label>
+                            <span id="pw-match" class="text-[10px] font-mono uppercase tracking-wider text-slate-500"></span>
+                        </div>
+                        <input id="su-pw2" type="password" name="password2" autocomplete="new-password"
+                               class="input font-mono {% if errors.password %}!border-rose-500{% endif %}">
+                    </div>
+                </div>
+                {% if errors.password %}<p class="-mt-2 text-xs text-rose-300">{{ errors.password }}</p>{% endif %}
+
+                <hr class="divider-dotted">
+
+                <div class="eyebrow">// handles externos · opcionais</div>
+
+                <div class="grid sm:grid-cols-2 gap-3">
+                    <div>
+                        <label for="su-cf" class="label">codeforces</label>
+                        <input id="su-cf" type="text" name="cf_handle" placeholder="ex: tourist"
+                               class="input font-mono {% if errors.cf_handle %}!border-rose-500{% endif %}" spellcheck="false">
+                        {% if errors.cf_handle %}<p class="mt-1 text-xs text-rose-300">{{ errors.cf_handle }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="su-ac" class="label">atcoder</label>
+                        <input id="su-ac" type="text" name="ac_handle" placeholder="ex: tourist"
+                               class="input font-mono {% if errors.ac_handle %}!border-rose-500{% endif %}" spellcheck="false">
+                        {% if errors.ac_handle %}<p class="mt-1 text-xs text-rose-300">{{ errors.ac_handle }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full mt-2">Criar conta</button>
+            </form>
+
+            <hr class="divider-dotted my-5">
+
+            <div class="text-center text-xs text-slate-400">
+                Já tem conta? <a href="{% url 'login' %}" class="text-[color:var(--accent)] hover:text-indigo-300">Entrar</a>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('[data-toggle-pw]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-toggle-pw');
+        const inp = document.getElementById(id);
+        if (!inp) return;
+        const showing = inp.type === 'text';
+        inp.type = showing ? 'password' : 'text';
+        btn.textContent = showing ? 'mostrar' : 'ocultar';
+    });
+});
+
+const pw1 = document.getElementById('su-pw1');
+const pw2 = document.getElementById('su-pw2');
+const match = document.getElementById('pw-match');
+function syncMatch() {
+    if (!pw1 || !pw2 || !match) return;
+    if (!pw2.value) { match.textContent = ''; match.className = 'text-[10px] font-mono uppercase tracking-wider text-slate-500'; return; }
+    if (pw1.value === pw2.value) {
+        match.textContent = 'ok';
+        match.className = 'text-[10px] font-mono uppercase tracking-wider text-emerald-400';
+    } else {
+        match.textContent = 'difere';
+        match.className = 'text-[10px] font-mono uppercase tracking-wider text-rose-400';
+    }
+}
+pw1 && pw1.addEventListener('input', syncMatch);
+pw2 && pw2.addEventListener('input', syncMatch);
+</script>
 {% endblock %}

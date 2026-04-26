@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 
 import requests
 
+from .api_metrics import tracked_get
+
 logger = logging.getLogger(__name__)
 
 class CodeforcesClient:
@@ -22,7 +24,7 @@ class CodeforcesClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = tracked_get(url, params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
 
@@ -67,7 +69,7 @@ class CodeforcesClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = tracked_get(url, params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
 
@@ -121,7 +123,7 @@ class CodeforcesClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = tracked_get(url, params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
 
@@ -183,7 +185,7 @@ class CodeforcesClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = tracked_get(url, params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
 
@@ -261,7 +263,7 @@ class CodeforcesClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = tracked_get(url, params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
 
@@ -323,7 +325,7 @@ class AtCoderClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = tracked_get(url, params=params, timeout=10)
                 if response.status_code == 404:
                     info2, err2 = AtCoderClient._get_user_info_from_official(handle)
                     if info2:
@@ -380,7 +382,7 @@ class AtCoderClient:
         max_retries = 2
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, timeout=10)
+                response = tracked_get(url, timeout=10)
                 if response.status_code == 404:
                     return None, "Usuário não encontrado no AtCoder."
                 response.raise_for_status()
@@ -430,7 +432,7 @@ class AtCoderClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, params=params, timeout=10)
+                response = tracked_get(url, params=params, timeout=10)
                 if response.status_code == 403:
                     logger.warning(
                         "AtCoder (Kenkoooo) retornou 403 para %s. "

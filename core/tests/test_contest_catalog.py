@@ -41,7 +41,7 @@ class ContestCatalogTests(SimpleTestCase):
             ),
         ]
 
-        with patch("core.services.contest_catalog.requests.get", side_effect=responses) as get_mock:
+        with patch("core.services.contest_catalog.tracked_get", side_effect=responses) as get_mock:
             contests = contest_catalog.get_ac_contests(2024)
 
         self.assertEqual(len(contests), 1)
@@ -60,7 +60,7 @@ class ContestCatalogTests(SimpleTestCase):
             _MockResponse(200, [{"id": "abc001_a", "title": "A - Product"}]),
         ]
 
-        with patch("core.services.contest_catalog.requests.get", side_effect=responses) as get_mock:
+        with patch("core.services.contest_catalog.tracked_get", side_effect=responses) as get_mock:
             problems = contest_catalog.get_ac_contest_problems("abc001")
 
         self.assertEqual(len(problems), 1)
@@ -98,7 +98,7 @@ class ContestCatalogTests(SimpleTestCase):
             _MockResponse(200, tasks_html),
         ]
 
-        with patch("core.services.contest_catalog.requests.get", side_effect=responses) as get_mock:
+        with patch("core.services.contest_catalog.tracked_get", side_effect=responses) as get_mock:
             problems = contest_catalog.get_ac_contest_problems("abc999")
 
         self.assertEqual(len(problems), 2)

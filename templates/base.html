@@ -5,13 +5,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stalkineitor 2.0</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Tailwind CSS -->
+    <script>
+        window.tailwind = window.tailwind || {};
+        window.tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+                    },
+                },
+            },
+        };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <!-- highlight.js -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
     <link rel="stylesheet" href="{% static 'css/floating_timer.css' %}">
     <link rel="stylesheet" href="{% static 'css/train_blind_mode.css' %}">
     <style>
@@ -53,46 +71,56 @@
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans">
-    <nav class="relative z-50 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 text-slate-100 shadow-md border-b border-slate-800">
+<body class="text-slate-100">
+    <div class="app-bg" aria-hidden="true"></div>
+    <div id="htmx-progress" aria-hidden="true"></div>
+
+    <nav class="relative z-40 border-b border-[color:var(--border)] bg-[color:var(--surface)]/95 backdrop-blur-[2px] px-4 py-2.5">
         <div class="container mx-auto flex flex-wrap items-center justify-between gap-3">
-            <a href="{% url 'dashboard' %}" class="flex items-center gap-3">
-                <img src="{% static 'img/logo.png' %}" alt="Stalkineitor" class="h-14 w-14 translate-x-1 translate-y-1 rounded-2xl bg-slate-950 object-cover shadow-sm">
-                <span class="text-2xl font-bold tracking-tight leading-none mt-0.5">Stalkineitor 2.0</span>
+            <a href="{% url 'dashboard' %}" class="flex items-center gap-2.5 group">
+                <img src="{% static 'img/logo.png' %}" alt="Stalkineitor" class="h-9 w-9 object-contain opacity-90 group-hover:opacity-100 transition">
+                <span class="font-semibold leading-none text-slate-100">
+                    stalkineitor
+                    <span class="font-mono text-[0.65rem] text-slate-500 ml-1">v2.0</span>
+                </span>
             </a>
 
-            <div class="hidden md:flex flex-wrap items-center gap-2">
-                <a href="{% url 'dashboard' %}" class="px-4 py-2 rounded-full text-sm border {% if request.resolver_match.url_name == 'dashboard' %}border-indigo-500/60 bg-indigo-500/20 text-indigo-100{% else %}border-slate-700 bg-slate-900/60 hover:bg-slate-800{% endif %}">Dashboard</a>
-                <a href="{% url 'ranking' %}" class="px-4 py-2 rounded-full text-sm border {% if request.resolver_match.url_name == 'ranking' %}border-indigo-500/60 bg-indigo-500/20 text-indigo-100{% else %}border-slate-700 bg-slate-900/60 hover:bg-slate-800{% endif %}">Ranking</a>
-                <a href="{% url 'train' %}" class="px-4 py-2 rounded-full text-sm border {% if request.resolver_match.url_name == 'train' %}border-indigo-500/60 bg-indigo-500/20 text-indigo-100{% else %}border-slate-700 bg-slate-900/60 hover:bg-slate-800{% endif %}">Treino</a>
-                <a href="{% url 'contests_overview' %}" class="px-4 py-2 rounded-full text-sm border {% if request.resolver_match.url_name == 'contests_overview' %}border-indigo-500/60 bg-indigo-500/20 text-indigo-100{% else %}border-slate-700 bg-slate-900/60 hover:bg-slate-800{% endif %}">Contests</a>
+            <div class="hidden md:flex items-center gap-1">
+                <a href="{% url 'dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">Dashboard</a>
+                <a href="{% url 'ranking' %}" class="nav-link {% if request.resolver_match.url_name == 'ranking' %}is-active{% endif %}">Ranking</a>
+                <a href="{% url 'train' %}" class="nav-link {% if request.resolver_match.url_name == 'train' %}is-active{% endif %}">Treino</a>
+                <a href="{% url 'contests_overview' %}" class="nav-link {% if request.resolver_match.url_name == 'contests_overview' %}is-active{% endif %}">Contests</a>
 
                 {% if request.user.is_superuser %}
                 <details class="relative">
-                    <summary class="cursor-pointer list-none px-4 py-2 rounded-full text-sm border border-slate-700 bg-slate-900/60 hover:bg-slate-800">
+                    <summary class="cursor-pointer list-none nav-link">
                         Ferramentas
+                        <svg viewBox="0 0 20 20" class="ml-0.5 h-3 w-3 opacity-60" fill="currentColor"><path d="M5.5 7.5l4.5 4.5 4.5-4.5z"/></svg>
                     </summary>
-                    <div class="absolute right-0 mt-2 w-52 rounded-xl border border-slate-700 bg-slate-950 p-2 text-sm shadow-xl z-50">
-                        <a href="{% url 'admin_panel' %}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Painel ADM Nutella</a>
-                        <a href="{% url 'admin_users' %}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Usuários</a>
-                        <a href="{% url 'add_student' %}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Adicionar aluno</a>
-                        <a href="{% url 'admin:index' %}" target="_blank" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800">Painel ADM Raiz</a>
+                    <div class="absolute right-0 mt-1.5 w-56 rounded-md border border-[color:var(--border-strong)] bg-[color:var(--surface)] p-1 text-sm shadow-xl z-50">
+                        <a href="{% url 'admin_panel' %}" class="block rounded px-3 py-1.5 text-slate-200 hover:bg-[color:var(--surface-2)]">Painel ADM Nutella</a>
+                        <a href="{% url 'admin_users' %}" class="block rounded px-3 py-1.5 text-slate-200 hover:bg-[color:var(--surface-2)]">Usuários</a>
+                        <a href="{% url 'add_student' %}" class="block rounded px-3 py-1.5 text-slate-200 hover:bg-[color:var(--surface-2)]">Adicionar aluno</a>
+                        <a href="{% url 'admin:index' %}" target="_blank" rel="noopener" class="block rounded px-3 py-1.5 text-slate-200 hover:bg-[color:var(--surface-2)]">Painel ADM Raiz</a>
                     </div>
                 </details>
                 {% endif %}
             </div>
 
-            <div class="hidden md:flex flex-wrap items-center gap-2">
+            <div class="hidden md:flex items-center gap-1">
                 {% if request.user.is_authenticated %}
-                    <a href="{% url 'user_profile' request.user.username %}?tab=settings" class="px-4 py-2 rounded-full text-sm border border-slate-700 bg-slate-900/60 hover:bg-slate-800">Minha Conta</a>
-                    <a href="{% url 'logout' %}" class="px-4 py-2 rounded-full text-sm border border-rose-500/40 bg-rose-500/10 text-rose-100 hover:bg-rose-500/20">Sair</a>
+                    <a href="{% url 'user_profile' request.user.username %}?tab=settings" class="nav-link" title="{{ request.user.username }}">
+                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 opacity-70" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+                        Minha Conta
+                    </a>
+                    <a href="{% url 'logout' %}" class="btn btn-ghost btn-sm">Sair</a>
                 {% else %}
-                    <a href="{% url 'login' %}" class="px-4 py-2 rounded-full text-sm border border-slate-700 bg-slate-900/60 hover:bg-slate-800">Entrar</a>
-                    <a href="{% url 'signup' %}" class="px-4 py-2 rounded-full text-sm border border-emerald-500/40 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25">Criar conta</a>
+                    <a href="{% url 'login' %}" class="nav-link">Entrar</a>
+                    <a href="{% url 'signup' %}" class="btn btn-primary btn-sm">Criar conta</a>
                 {% endif %}
             </div>
 
-            <button id="nav-toggle" class="md:hidden inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 p-2 text-slate-200 hover:bg-slate-800" aria-expanded="false" aria-controls="mobile-nav">
+            <button id="nav-toggle" class="md:hidden inline-flex items-center justify-center rounded-md border border-[color:var(--border-strong)] bg-[color:var(--surface-2)] p-1.5 text-slate-200 hover:bg-[color:var(--surface-3)]" aria-expanded="false" aria-controls="mobile-nav">
                 <span class="sr-only">Abrir menu</span>
                 <svg id="nav-icon-open" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
                     <path fill-rule="evenodd" d="M3.75 5.25h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1 0-1.5Zm0 6h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1 0-1.5Zm0 6h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1 0-1.5Z" clip-rule="evenodd" />
@@ -103,43 +131,47 @@
             </button>
         </div>
 
-        <div id="mobile-nav" class="md:hidden hidden border-t border-slate-800 bg-slate-950/95">
+        <div id="mobile-nav" class="md:hidden hidden border-t border-[color:var(--border)] bg-[color:var(--surface)]">
             <div class="container mx-auto space-y-4 px-4 py-4 text-sm text-slate-200">
                 <div>
-                    <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Principal</div>
-                    <div class="grid gap-2">
-                        <a href="{% url 'dashboard' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Dashboard</a>
-                        <a href="{% url 'ranking' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Ranking</a>
-                        <a href="{% url 'train' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Treino</a>
-                        <a href="{% url 'contests_overview' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Contests</a>
+                    <div class="eyebrow mb-2">Principal</div>
+                    <div class="grid gap-1.5">
+                        {% with cur=request.resolver_match.url_name %}
+                        <a href="{% url 'dashboard' %}" class="rounded-md border border-[color:var(--border)] {% if cur == 'dashboard' %}border-l-2 border-l-[color:var(--accent)]{% endif %} bg-[color:var(--surface-2)] px-3 py-2">Dashboard</a>
+                        <a href="{% url 'ranking' %}" class="rounded-md border border-[color:var(--border)] {% if cur == 'ranking' %}border-l-2 border-l-[color:var(--accent)]{% endif %} bg-[color:var(--surface-2)] px-3 py-2">Ranking</a>
+                        <a href="{% url 'train' %}" class="rounded-md border border-[color:var(--border)] {% if cur == 'train' %}border-l-2 border-l-[color:var(--accent)]{% endif %} bg-[color:var(--surface-2)] px-3 py-2">Treino</a>
+                        <a href="{% url 'contests_overview' %}" class="rounded-md border border-[color:var(--border)] {% if cur == 'contests_overview' %}border-l-2 border-l-[color:var(--accent)]{% endif %} bg-[color:var(--surface-2)] px-3 py-2">Contests</a>
+                        {% endwith %}
                     </div>
                 </div>
                 {% if request.user.is_superuser %}
                 <div>
-                    <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Ferramentas</div>
-                    <div class="grid gap-2">
-                        <a href="{% url 'admin_panel' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Painel ADM Nutella</a>
-                        <a href="{% url 'admin_users' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Usuários</a>
-                        <a href="{% url 'add_student' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Adicionar aluno</a>
-                        <a href="{% url 'admin:index' %}" target="_blank" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Painel ADM Raiz</a>
+                    <div class="eyebrow mb-2">Ferramentas</div>
+                    <div class="grid gap-1.5">
+                        <a href="{% url 'admin_panel' %}" class="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2">Painel ADM Nutella</a>
+                        <a href="{% url 'admin_users' %}" class="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2">Usuários</a>
+                        <a href="{% url 'add_student' %}" class="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2">Adicionar aluno</a>
+                        <a href="{% url 'admin:index' %}" target="_blank" rel="noopener" class="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2">Painel ADM Raiz</a>
                     </div>
                 </div>
                 {% endif %}
                 <div>
-                    <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Conta</div>
-                    <div class="grid gap-2">
+                    <div class="eyebrow mb-2">Conta</div>
+                    <div class="grid gap-1.5">
                         {% if request.user.is_authenticated %}
-                            <a href="{% url 'user_profile' request.user.username %}?tab=settings" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Minha Conta</a>
-                            <a href="{% url 'logout' %}" class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-rose-100">Sair</a>
+                            <a href="{% url 'user_profile' request.user.username %}?tab=settings" class="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2">Minha Conta</a>
+                            <a href="{% url 'logout' %}" class="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-rose-100">Sair</a>
                         {% else %}
-                            <a href="{% url 'login' %}" class="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">Entrar</a>
-                            <a href="{% url 'signup' %}" class="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-emerald-100">Criar conta</a>
+                            <a href="{% url 'login' %}" class="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-2)] px-3 py-2">Entrar</a>
+                            <a href="{% url 'signup' %}" class="rounded-md border border-[color:var(--accent)]/60 bg-[color:var(--accent-soft)] px-3 py-2 text-indigo-100">Criar conta</a>
                         {% endif %}
                     </div>
                 </div>
             </div>
         </div>
     </nav>
+
+    <div id="toast-root" aria-live="polite" aria-atomic="false"></div>
 
     <main class="container mx-auto p-4">
         {% block content %}{% endblock %}
@@ -319,10 +351,57 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => highlightCodeBlocks());
-        document.body.addEventListener('htmx:afterSwap', (event) => {
-            highlightCodeBlocks();
-        });
+        document.body.addEventListener('htmx:afterSwap', () => highlightCodeBlocks());
 
+        // ---- HTMX progress bar (top of viewport) ----
+        let __htmxInflight = 0;
+        document.body.addEventListener('htmx:beforeRequest', () => {
+            __htmxInflight++;
+            document.documentElement.classList.add('htmx-loading');
+        });
+        const __htmxDone = () => {
+            __htmxInflight = Math.max(0, __htmxInflight - 1);
+            if (__htmxInflight === 0) document.documentElement.classList.remove('htmx-loading');
+        };
+        document.body.addEventListener('htmx:afterRequest', __htmxDone);
+        document.body.addEventListener('htmx:responseError', __htmxDone);
+        document.body.addEventListener('htmx:sendError', __htmxDone);
+        document.body.addEventListener('htmx:timeout', __htmxDone);
+
+        // ---- Toast system ----
+        // Use:  window.showToast({message, type, timeout})
+        // Or via response header: HX-Trigger: {"showToast":{"message":"...","type":"success"}}
+        const TOAST_ICONS = {
+            success: '<svg viewBox="0 0 24 24" class="toast-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+            warning: '<svg viewBox="0 0 24 24" class="toast-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>',
+            danger:  '<svg viewBox="0 0 24 24" class="toast-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>',
+            info:    '<svg viewBox="0 0 24 24" class="toast-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+        };
+        window.showToast = function(opts) {
+            const root = document.getElementById('toast-root');
+            if (!root) return;
+            const o = typeof opts === 'string' ? { message: opts } : (opts || {});
+            const type = ['success','warning','danger','info'].includes(o.type) ? o.type : 'info';
+            const el = document.createElement('div');
+            el.className = 'toast toast-' + type;
+            el.setAttribute('role', type === 'danger' ? 'alert' : 'status');
+            el.innerHTML = TOAST_ICONS[type] + '<div class="toast-body"></div>' +
+                '<button class="toast-close" aria-label="Fechar">' +
+                '<svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6l-12 12"/></svg>' +
+                '</button>';
+            el.querySelector('.toast-body').textContent = o.message || '';
+            const dismiss = () => {
+                el.classList.add('toast-out');
+                el.addEventListener('animationend', () => el.remove(), { once: true });
+            };
+            el.querySelector('.toast-close').addEventListener('click', dismiss);
+            root.appendChild(el);
+            const timeout = typeof o.timeout === 'number' ? o.timeout : 4200;
+            if (timeout > 0) setTimeout(dismiss, timeout);
+        };
+        document.body.addEventListener('showToast', (e) => window.showToast(e.detail));
+
+        // ---- Mobile nav toggle ----
         const navToggle = document.getElementById('nav-toggle');
         const mobileNav = document.getElementById('mobile-nav');
         const navIconOpen = document.getElementById('nav-icon-open');

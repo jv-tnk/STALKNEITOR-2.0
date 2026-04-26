@@ -1,0 +1,432 @@
+/* Stalkineitor 2.0 — design system
+ * Pegada: engineering tool / lab notebook.
+ * Densidade alta, mono-forward, sem glassmorphism, sem gradientes blob.
+ */
+
+:root {
+    --bg: #0b0f1a;
+    --bg-grid: rgba(148, 163, 184, 0.045);
+    --surface: #0f1626;
+    --surface-2: #131b2e;
+    --surface-3: #1a2236;
+    --border: #1f2a44;
+    --border-strong: #2b3a5c;
+    --text: #e6ebf5;
+    --text-muted: #94a3b8;
+    --text-faint: #64748b;
+    --accent: #818cf8;          /* indigo-400 — mantém identidade */
+    --accent-strong: #6366f1;   /* indigo-500 */
+    --accent-edge: #4f46e5;     /* indigo-600 */
+    --accent-soft: rgba(99, 102, 241, 0.12);
+    --success: #34d399;
+    --warning: #f59e0b;
+    --danger: #fb7185;
+    --info: #38bdf8;
+    --ring: 0 0 0 2px rgba(129, 140, 248, 0.55);
+    --radius: 6px;
+    --radius-lg: 10px;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0;
+}
+
+/* Grid sutil de fundo — blueprint vibe.
+   Pequeno dot-grid 24px, mal aparece, dá textura sem "AI gradient blob". */
+.app-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--bg);
+    background-image:
+        radial-gradient(var(--bg-grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: 0 0;
+}
+.app-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(11, 15, 26, 0.0) 0%, rgba(11, 15, 26, 0.65) 80%, var(--bg) 100%);
+}
+
+/* Tipografia auxiliar */
+.font-mono,
+.num,
+.code-text {
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum', 'zero', 'ss01';
+}
+
+/* Section eyebrow — pequena label técnica, caps + tracking */
+.eyebrow {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-faint);
+    font-weight: 500;
+}
+
+/* Foco acessível e consistente */
+:where(a, button, [role="button"], input, select, textarea, summary):focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+    border-radius: var(--radius);
+}
+
+/* Scrollbar discreta */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #2b3a5c transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb {
+    background: #2b3a5c;
+    border-radius: 0;
+}
+*::-webkit-scrollbar-thumb:hover { background: #3b4d75; }
+
+/* Seleção com cor accent */
+::selection {
+    background: rgba(99, 102, 241, 0.45);
+    color: #fff;
+}
+
+/* ==========================================================================
+   Componentes — engineering / dashboard density
+   ========================================================================== */
+
+.card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: border-color .15s ease;
+}
+.card-hover:hover { border-color: var(--border-strong); }
+
+/* Card "destacado" — fina linha de accent na borda esquerda
+   (motif de bloco de código / seção marcada). */
+.card-accent {
+    border-left: 2px solid var(--accent-strong);
+}
+
+/* Headline com underline pontilhada — vibe blueprint */
+.section-title {
+    display: flex;
+    align-items: baseline;
+    gap: .75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0;
+}
+.section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-image: linear-gradient(90deg, var(--border) 50%, transparent 50%);
+    background-size: 6px 1px;
+    background-repeat: repeat-x;
+    margin-left: .5rem;
+}
+
+/* Botões — sem gradiente, accent sólido */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    padding: .5rem .9rem;
+    font-size: .82rem;
+    font-weight: 600;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text);
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+    cursor: pointer;
+    line-height: 1.1;
+}
+.btn:hover { background: var(--surface-3); border-color: #3a4b73; }
+.btn:active { background: #1d2742; }
+.btn[disabled], .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-primary {
+    background: var(--accent-strong);
+    border-color: var(--accent-edge);
+    color: #fff;
+}
+.btn-primary:hover { background: #5b5fe0; border-color: var(--accent-edge); }
+.btn-primary:active { background: var(--accent-edge); }
+
+.btn-ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-muted);
+}
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
+
+.btn-danger  { border-color: rgba(251, 113, 133, .55); background: rgba(251, 113, 133, .1);  color: #fecdd3; }
+.btn-danger:hover  { background: rgba(251, 113, 133, .18); }
+.btn-success { border-color: rgba(52, 211, 153, .55);  background: rgba(52, 211, 153, .1);   color: #a7f3d0; }
+.btn-success:hover { background: rgba(52, 211, 153, .18); }
+
+.btn-sm { padding: .3rem .65rem; font-size: .72rem; }
+
+/* Inputs */
+.input {
+    width: 100%;
+    padding: .55rem .75rem;
+    font-size: .85rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text);
+    transition: border-color .12s ease, background .12s ease;
+    font-family: inherit;
+}
+.input::placeholder { color: var(--text-faint); }
+.input:hover { border-color: #3a4b73; }
+.input:focus { border-color: var(--accent); background: #060912; box-shadow: 0 0 0 1px rgba(129,140,248,.25); }
+
+.label {
+    display: block;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: .35rem;
+    letter-spacing: 0;
+}
+
+/* Badges — square-ish, técnico, sem pílulas exageradas */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .15rem .5rem;
+    font-size: .7rem;
+    font-weight: 600;
+    border-radius: 4px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    line-height: 1.4;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    letter-spacing: 0.02em;
+}
+.badge-success { border-color: rgba(52, 211, 153, .45); background: rgba(52, 211, 153, .1);  color: #a7f3d0; }
+.badge-warning { border-color: rgba(245, 158, 11, .45); background: rgba(245, 158, 11, .1);  color: #fcd34d; }
+.badge-danger  { border-color: rgba(251, 113, 133, .45); background: rgba(251, 113, 133, .1); color: #fecdd3; }
+.badge-info    { border-color: rgba(56, 189, 248, .45); background: rgba(56, 189, 248, .1);  color: #bae6fd; }
+.badge-accent  { border-color: rgba(129, 140, 248, .45); background: rgba(129, 140, 248, .1); color: #c7d2fe; }
+
+.badge-dot::before {
+    content: "";
+    display: inline-block;
+    width: .4rem; height: .4rem;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+/* "kbd" / chip de tecla — para hints de atalhos */
+.kbd {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: .7rem;
+    padding: .1rem .4rem;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    background: var(--surface-2);
+}
+
+/* Divisor ponilhado (blueprint) */
+.divider-dotted {
+    height: 1px;
+    border: 0;
+    background-image: linear-gradient(90deg, var(--border-strong) 50%, transparent 50%);
+    background-size: 6px 1px;
+    background-repeat: repeat-x;
+}
+
+/* ==========================================================================
+   Nav — active state com identidade
+   Linha sólida abaixo do link ativo, em vez de "pílula com glow"
+   ========================================================================== */
+.nav-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .5rem .85rem;
+    font-size: .82rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    transition: color .12s ease, background .12s ease;
+}
+.nav-link:hover { color: var(--text); background: var(--surface-2); }
+.nav-link.is-active {
+    color: var(--text);
+    background: var(--surface-2);
+}
+.nav-link.is-active::after {
+    content: "";
+    position: absolute;
+    left: .85rem;
+    right: .85rem;
+    bottom: -1px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+}
+
+/* ==========================================================================
+   HTMX progress bar (topo da viewport) — fina linha accent, sem rainbow
+   ========================================================================== */
+#htmx-progress {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    z-index: 100;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: 0 0;
+    transition: transform .25s ease, opacity .2s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+.htmx-loading #htmx-progress {
+    opacity: 1;
+    transform: scaleX(0.7);
+    animation: htmxBar 1.2s ease-in-out infinite;
+}
+@keyframes htmxBar {
+    0%, 100% { transform: scaleX(0.05); transform-origin: 0 0; }
+    50%      { transform: scaleX(1);    transform-origin: 0 0; }
+    50.1%    {                         transform-origin: 100% 0; }
+    100.1%   { transform: scaleX(0.05); transform-origin: 100% 0; }
+}
+
+/* HTMX spinner inline (usar com hx-indicator) */
+.htmx-spinner {
+    display: none;
+    width: 0.95rem; height: 0.95rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 999px;
+    animation: spin .65s linear infinite;
+}
+.htmx-request > .htmx-spinner,
+.htmx-spinner.htmx-indicator.htmx-request { display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ==========================================================================
+   Toasts (HX-Trigger: showToast)
+   ========================================================================== */
+#toast-root {
+    position: fixed;
+    top: 0.75rem; right: 0.75rem;
+    z-index: 200;
+    display: flex; flex-direction: column; gap: .5rem;
+    pointer-events: none;
+}
+.toast {
+    pointer-events: auto;
+    min-width: 16rem; max-width: 22rem;
+    padding: .65rem .8rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-strong);
+    border-left-width: 3px;
+    background: var(--surface);
+    color: var(--text);
+    display: flex; align-items: flex-start; gap: .6rem;
+    font-size: .82rem; line-height: 1.4;
+    animation: toastIn .2s ease both;
+}
+.toast.toast-out { animation: toastOut .2s ease forwards; }
+.toast-success { border-left-color: var(--success); }
+.toast-warning { border-left-color: var(--warning); }
+.toast-danger  { border-left-color: var(--danger); }
+.toast-info    { border-left-color: var(--info); }
+.toast-icon { flex: none; width: 1rem; height: 1rem; margin-top: .15rem; }
+.toast-success .toast-icon { color: var(--success); }
+.toast-warning .toast-icon { color: var(--warning); }
+.toast-danger  .toast-icon { color: var(--danger); }
+.toast-info    .toast-icon { color: var(--info); }
+.toast-close {
+    flex: none; margin-left: auto;
+    color: var(--text-faint);
+    background: transparent; border: 0;
+    cursor: pointer; padding: .1rem;
+    border-radius: 4px;
+}
+.toast-close:hover { color: var(--text); background: var(--surface-2); }
+@keyframes toastIn  { from { transform: translateY(-6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes toastOut { to   { transform: translateY(-6px); opacity: 0; } }
+
+/* ==========================================================================
+   Stat block — número grande mono-forward, label discreta
+   ========================================================================== */
+.stat {
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    display: flex; flex-direction: column; gap: .35rem;
+    position: relative;
+}
+.stat .stat-label {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: .65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-faint);
+    font-weight: 500;
+}
+.stat .stat-value {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 1.85rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.05;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+}
+.stat .stat-hint {
+    font-size: .7rem;
+    color: var(--text-faint);
+}
+.stat[data-tone="accent"]  .stat-value { color: var(--accent); }
+.stat[data-tone="success"] .stat-value { color: var(--success); }
+.stat[data-tone="warning"] .stat-value { color: var(--warning); }
+.stat[data-tone="info"]    .stat-value { color: var(--info); }
+
+/* ==========================================================================
+   Micro-anim
+   ========================================================================== */
+.fade-in { animation: fadeIn .2s ease both; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+    }
+}

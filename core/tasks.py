@@ -64,8 +64,8 @@ def _acquire_lock(lock_key: str, ttl_seconds: int = 600) -> bool:
         client = _get_redis_client()
         return bool(client.set(lock_key, str(time.time()), nx=True, ex=ttl_seconds))
     except Exception:
-        logger.exception("Lock failure for %s; continuing without lock.", lock_key)
-        return True
+        logger.critical("Lock failure for %s; refusing to proceed without lock.", lock_key)
+        return False
 
 
 def _set_task_health(task_name: str, payload: dict, ttl_seconds: int = 2 * 24 * 3600) -> None:
@@ -86,6 +86,123 @@ def _set_task_health(task_name: str, payload: dict, ttl_seconds: int = 2 * 24 * 
 
 def _sync_backoff_minutes(attempts: int) -> int:
     return int(min(360, (2 ** max(0, attempts)) * 5))
+
+
+def _contest_problem_initial_sync_at(contest: Contest, now=None):
+    now = now or timezone.now()
+    start_buffer_minutes = max(
+        1,
+        int(getattr(settings, "CONTEST_PROBLEMS_START_BUFFER_MINUTES", 3)),
+    )
+    start_time = getattr(contest, "start_time", None)
+    if start_time:
+        first_due_at = start_time + timedelta(minutes=start_buffer_minutes)
+        if first_due_at > now:
+            return first_due_at
+    return now
+
+
+def _contest_problem_retry_at(
+    contest: Contest,
+    attempts: int,
+    *,
+    now=None,
+    no_problems: bool = False,
+):
+    now = now or timezone.now()
+    initial_sync_at = _contest_problem_initial_sync_at(contest, now)
+    if initial_sync_at > now:
+        return initial_sync_at
+
+    if no_problems:
+        recent_window_hours = max(
+            1,
+            int(getattr(settings, "CONTEST_PROBLEMS_RECENT_RETRY_WINDOW_HOURS", 12)),
+        )
+        recent_retry_minutes = max(
+            2,
+            int(getattr(settings, "CONTEST_PROBLEMS_RECENT_RETRY_MINUTES", 3)),
+        )
+        start_time = getattr(contest, "start_time", None)
+        if start_time and start_time >= now - timedelta(hours=recent_window_hours):
+            return now + timedelta(minutes=min(30, recent_retry_minutes * max(1, attempts)))
+
+    return now + timedelta(minutes=_sync_backoff_minutes(attempts))
+
+
+def _schedule_contest_problem_retry(
+    contest: Contest,
+    *,
+    now=None,
+    no_problems: bool = False,
+):
+    now = now or timezone.now()
+    attempts = int(contest.problems_sync_attempts or 0) + 1
+    next_sync_at = _contest_problem_retry_at(
+        contest,
+        attempts,
+        now=now,
+        no_problems=no_problems,
+    )
+    contest.problems_sync_attempts = attempts
+    contest.problems_next_sync_at = next_sync_at
+    if contest.start_time and contest.start_time > now:
+        contest.problems_sync_status = (
+            "NEW" if not contest.problems_last_synced_at else "STALE"
+        )
+    else:
+        contest.problems_sync_status = "FAILED"
+    contest.save(update_fields=[
+        "problems_sync_status",
+        "problems_sync_attempts",
+        "problems_next_sync_at",
+    ])
+    return next_sync_at
+
+
+def _contest_problem_sync_is_due(contest: Contest, now=None) -> bool:
+    now = now or timezone.now()
+    if contest.start_time and contest.start_time > now:
+        return False
+    if contest.problems_next_sync_at and contest.problems_next_sync_at > now:
+        return False
+    return True
+
+
+def _enqueue_catalog_problem_syncs(candidates: list[tuple[str, str]]) -> int:
+    if not bool(getattr(settings, "CONTEST_PROBLEMS_ENQUEUE_ON_CATALOG", True)):
+        return 0
+
+    limit = max(
+        0,
+        int(getattr(settings, "CONTEST_PROBLEMS_CATALOG_ENQUEUE_LIMIT", 12)),
+    )
+    if limit <= 0:
+        return 0
+
+    seen: set[tuple[str, str]] = set()
+    enqueued = 0
+    for platform, contest_id in candidates:
+        key = (platform, str(contest_id))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        try:
+            sync_contest_problems.delay(platform, str(contest_id))
+        except Exception:
+            logger.exception(
+                "Failed to enqueue contest problem sync after catalog platform=%s contest_id=%s",
+                platform,
+                contest_id,
+            )
+            continue
+
+        enqueued += 1
+        if enqueued >= limit:
+            break
+
+    return enqueued
 
 
 def _is_cache_fresh(cache: ProblemRatingCache) -> bool:
@@ -475,81 +592,87 @@ def fetch_student_data(student_id):
     try:
         student = PerfilAluno.objects.get(id=student_id)
 
+        def _bulk_sync(platform, subs):
+            """Bulk-create new submissions, score new accepted ones. Returns (created, total)."""
+            if not subs:
+                return 0, 0
+            external_ids = [s['external_id'] for s in subs if s.get('external_id')]
+            existing_eids = set()
+            if external_ids:
+                existing_eids = set(
+                    Submissao.objects.filter(
+                        plataforma=platform,
+                        external_id__in=external_ids,
+                    ).values_list('external_id', flat=True)
+                )
+
+            to_create = []
+            new_accepted_eids = []
+            for sub in subs:
+                eid = sub.get('external_id')
+                if not eid or eid in existing_eids:
+                    continue
+                to_create.append(Submissao(
+                    aluno=student,
+                    plataforma=platform,
+                    contest_id=sub['contest_id'],
+                    problem_index=sub['problem_index'],
+                    problem_name=sub.get('problem_name', '') or sub.get('problem_id', ''),
+                    tags=sub.get('tags', '') or '',
+                    verdict=sub['verdict'],
+                    submission_time=sub['submission_time'],
+                    external_id=eid,
+                ))
+                if sub['verdict'] in ('OK', 'AC'):
+                    new_accepted_eids.append(eid)
+
+            created_count = 0
+            if to_create:
+                Submissao.objects.bulk_create(to_create, ignore_conflicts=True)
+                created_count = len(to_create)
+            if new_accepted_eids:
+                for submission in Submissao.objects.filter(
+                    plataforma=platform, external_id__in=new_accepted_eids,
+                ):
+                    process_submission_for_scoring(submission)
+
+            return created_count, len(subs)
+
         # Codeforces
-        cf_subs = []
+        cf_created, cf_total = 0, 0
         if student.handle_codeforces:
             last_cf = Submissao.objects.filter(
-                aluno=student,
-                plataforma='CF',
+                aluno=student, plataforma='CF',
             ).aggregate(Max('submission_time'))['submission_time__max']
             max_count = int(getattr(settings, "CF_SYNC_RECENT_MAX_COUNT", 1000))
             if not last_cf:
-                # First sync: pull a deeper history window once.
                 max_count = int(getattr(settings, "CF_SYNC_INITIAL_MAX_COUNT", 5000))
             cf_subs = CodeforcesClient.get_submissions(
-                student.handle_codeforces,
-                since=last_cf,
-                max_count=max_count,
+                student.handle_codeforces, since=last_cf, max_count=max_count,
             )
-        count_cf = 0
-        for sub in cf_subs:
-            submission, created = Submissao.objects.update_or_create(
-                plataforma='CF',
-                external_id=sub['external_id'],
-                defaults={
-                    'aluno': student,
-                    'plataforma': 'CF',
-                    'contest_id': sub['contest_id'],
-                    'problem_index': sub['problem_index'],
-                    'problem_name': sub.get('problem_name', ''),
-                    'tags': sub.get('tags', ''),
-                    'verdict': sub['verdict'],
-                    'submission_time': sub['submission_time']
-                }
-            )
-            if created:
-                process_submission_for_scoring(submission)
-            count_cf += 1
+            cf_created, cf_total = _bulk_sync('CF', cf_subs)
 
         # AtCoder
-        ac_subs = []
+        ac_created, ac_total = 0, 0
         if student.handle_atcoder:
             last_ac = Submissao.objects.filter(
-                aluno=student,
-                plataforma='AC',
+                aluno=student, plataforma='AC',
             ).aggregate(Max('submission_time'))['submission_time__max']
             ac_subs = AtCoderClient.get_submissions(student.handle_atcoder, since=last_ac)
-        count_ac = 0
-        for sub in ac_subs:
-            submission, created = Submissao.objects.update_or_create(
-                plataforma='AC',
-                external_id=sub['external_id'],
-                defaults={
-                    'aluno': student,
-                    'plataforma': 'AC',
-                    'contest_id': sub['contest_id'],
-                    'problem_index': sub['problem_index'],
-                    'problem_name': sub.get('problem_name') or sub.get('problem_id', ''),
-                    'tags': sub.get('tags', ''),
-                    'verdict': sub['verdict'],
-                    'submission_time': sub['submission_time']
-                }
-            )
-            if created:
-                process_submission_for_scoring(submission)
-            count_ac += 1
-        
+            ac_created, ac_total = _bulk_sync('AC', ac_subs)
+
         # Update cache metrics
         total = Submissao.objects.filter(aluno=student, verdict__in=['OK', 'AC']).count()
         student.total_solved = total
         _refresh_student_ratings(student)
         student.save(update_fields=['total_solved'])
-        
-        return f"Updated {student.user.username}: {count_cf} CF, {count_ac} AC submissions synced. Total solved: {total}"
-        
+
+        return f"Updated {student.user.username}: CF {cf_created}/{cf_total}, AC {ac_created}/{ac_total}. Total solved: {total}"
+
     except PerfilAluno.DoesNotExist:
         return f"Student profile with ID {student_id} not found."
     except Exception as e:
+        logger.exception("Error in fetch_student_data for student_id=%s", student_id)
         return f"Error updating student {student_id}: {str(e)}"
 
 
@@ -842,6 +965,7 @@ def sync_contests(platform: str, year: int) -> dict:
     created = 0
     updated = 0
     now = timezone.now()
+    problem_sync_candidates: list[tuple[str, str]] = []
 
     with transaction.atomic():
         for contest in contests:
@@ -889,8 +1013,17 @@ def sync_contests(platform: str, year: int) -> dict:
                     existing.division = division
                 if changed:
                     existing.problems_sync_status = "STALE"
-                    existing.problems_next_sync_at = now
+                    existing.problems_next_sync_at = _contest_problem_initial_sync_at(existing, now)
                 existing.save()
+                needs_problem_sync = changed or existing.problems_sync_status in {
+                    "NEW",
+                    "STALE",
+                    "FAILED",
+                }
+                if not needs_problem_sync and existing.problems_sync_status == "SYNCED":
+                    needs_problem_sync = not ContestProblem.objects.filter(contest=existing).exists()
+                if needs_problem_sync and _contest_problem_sync_is_due(existing, now):
+                    problem_sync_candidates.append((platform, contest_id))
                 updated += 1
             else:
                 contest_obj = Contest(
@@ -904,22 +1037,28 @@ def sync_contests(platform: str, year: int) -> dict:
                     is_gym=is_gym if platform == "CF" else False,
                     last_sync_at=now,
                     problems_sync_status="NEW",
-                    problems_next_sync_at=now,
+                    problems_next_sync_at=None,
                 )
                 if category:
                     contest_obj.category = category
                 if division:
                     contest_obj.division = division
+                contest_obj.problems_next_sync_at = _contest_problem_initial_sync_at(contest_obj, now)
                 contest_obj.save()
+                if _contest_problem_sync_is_due(contest_obj, now):
+                    problem_sync_candidates.append((platform, contest_id))
                 created += 1
+
+    problem_sync_enqueued = _enqueue_catalog_problem_syncs(problem_sync_candidates)
 
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "sync_contests platform=%s year=%s created=%s updated=%s duration_ms=%s",
+        "sync_contests platform=%s year=%s created=%s updated=%s problem_sync_enqueued=%s duration_ms=%s",
         platform,
         year,
         created,
         updated,
+        problem_sync_enqueued,
         duration_ms,
     )
     return {
@@ -928,6 +1067,7 @@ def sync_contests(platform: str, year: int) -> dict:
         "year": year,
         "created": created,
         "updated": updated,
+        "problem_sync_enqueued": problem_sync_enqueued,
         "duration_ms": duration_ms,
     }
 
@@ -956,68 +1096,85 @@ def sync_contest_problems(platform: str, contest_id: str) -> dict:
         problems = get_ac_contest_problems(contest_id)
 
     if not problems:
-        contest.problems_sync_status = "FAILED"
-        contest.problems_sync_attempts = contest.problems_sync_attempts + 1
-        contest.problems_next_sync_at = timezone.now() + timedelta(
-            minutes=_sync_backoff_minutes(contest.problems_sync_attempts)
+        retry_at = _schedule_contest_problem_retry(
+            contest,
+            now=timezone.now(),
+            no_problems=True,
         )
-        contest.save(update_fields=[
-            "problems_sync_status",
-            "problems_sync_attempts",
-            "problems_next_sync_at",
-        ])
-        return {"status": "no_problems", "contest_id": contest_id}
+        return {
+            "status": "no_problems",
+            "contest_id": contest_id,
+            "next_sync_at": retry_at.isoformat(),
+        }
 
     created = 0
     updated = 0
     now = timezone.now()
 
+    objects_to_create = []
+    seen_urls = set()
+    for order, problem in enumerate(problems, start=1):
+        index_label = str(problem.get("index") or "").strip()
+        if not index_label:
+            continue
+
+        name = problem.get("name") or index_label
+        tags_raw = problem.get("tags") or []
+        tags_str = ""
+        if platform == "CF" and tags_raw:
+            tags_str = ",".join([str(t).strip() for t in tags_raw if str(t).strip()])
+        cf_rating = None
+        if platform == "CF":
+            try:
+                cf_rating = int(problem.get("rating")) if problem.get("rating") is not None else None
+            except Exception:
+                cf_rating = None
+        problem_id = problem.get("problem_id")
+        problem_url = build_problem_url_from_fields(
+            platform,
+            contest_id,
+            index_label,
+            problem_id,
+        )
+        problem_url = normalize_problem_url(problem_url)
+        if not problem_url:
+            continue
+        if problem_url in seen_urls:
+            continue
+        seen_urls.add(problem_url)
+
+        objects_to_create.append(
+            ContestProblem(
+                contest=contest,
+                platform=platform,
+                order=order,
+                index_label=index_label,
+                problem_url=problem_url,
+                name=name,
+                tags=tags_str,
+                cf_rating=cf_rating,
+                last_sync_at=now,
+            )
+        )
+
+    if not objects_to_create:
+        retry_at = _schedule_contest_problem_retry(
+            contest,
+            now=now,
+            no_problems=True,
+        )
+        logger.warning(
+            "sync_contest_problems produced no valid problems platform=%s contest_id=%s",
+            platform,
+            contest_id,
+        )
+        return {
+            "status": "no_valid_problems",
+            "contest_id": contest_id,
+            "next_sync_at": retry_at.isoformat(),
+        }
+
     with transaction.atomic():
-        objects_to_create = []
-        seen_urls = set()
-        for order, problem in enumerate(problems, start=1):
-            index_label = str(problem.get("index") or "").strip()
-            if not index_label:
-                continue
-
-            name = problem.get("name") or index_label
-            tags_raw = problem.get("tags") or []
-            tags_str = ""
-            if platform == "CF" and tags_raw:
-                tags_str = ",".join([str(t).strip() for t in tags_raw if str(t).strip()])
-            cf_rating = None
-            if platform == "CF":
-                try:
-                    cf_rating = int(problem.get("rating")) if problem.get("rating") is not None else None
-                except Exception:
-                    cf_rating = None
-            problem_id = problem.get("problem_id")
-            problem_url = build_problem_url_from_fields(
-                platform,
-                contest_id,
-                index_label,
-                problem_id,
-            )
-            problem_url = normalize_problem_url(problem_url)
-            if not problem_url:
-                continue
-            if problem_url in seen_urls:
-                continue
-            seen_urls.add(problem_url)
-
-            objects_to_create.append(
-                ContestProblem(
-                    contest=contest,
-                    platform=platform,
-                    order=order,
-                    index_label=index_label,
-                    problem_url=problem_url,
-                    name=name,
-                    tags=tags_str,
-                    cf_rating=cf_rating,
-                    last_sync_at=now,
-                )
-            )
 
         if objects_to_create:
             ContestProblem.objects.bulk_create(
@@ -1130,21 +1287,25 @@ def contests_catalog_refresh() -> dict:
         "AC": _catalog_years_for_platform("AC", now),
     }
     total_runs = 0
+    total_problem_sync_enqueued = 0
     for platform, years in years_by_platform.items():
         for year in years:
-            sync_contests(platform, year)
+            sync_result = sync_contests(platform, year)
+            total_problem_sync_enqueued += int(sync_result.get("problem_sync_enqueued") or 0)
             total_runs += 1
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "contests_catalog_refresh years_by_platform=%s runs=%s duration_ms=%s",
+        "contests_catalog_refresh years_by_platform=%s runs=%s problem_sync_enqueued=%s duration_ms=%s",
         years_by_platform,
         total_runs,
+        total_problem_sync_enqueued,
         duration_ms,
     )
     result = {
         "status": "ok",
         "years_by_platform": years_by_platform,
         "runs": total_runs,
+        "problem_sync_enqueued": total_problem_sync_enqueued,
         "duration_ms": duration_ms,
     }
     _set_task_health("contests_catalog_refresh", result)
@@ -1169,6 +1330,14 @@ def contests_problems_scheduler(
                 continue
             seen.add(contest.id)
             candidates.append(contest)
+
+    add_candidates(
+        Contest.objects.annotate(problem_count=Count("problems", distinct=True))
+        .filter(problem_count=0)
+        .filter(start_time__lte=now)
+        .filter(Q(problems_next_sync_at__isnull=True) | Q(problems_next_sync_at__lte=now))
+        .order_by("-start_time")
+    )
 
     add_candidates(
         Contest.objects.filter(problems_sync_status="NEW")
@@ -1373,19 +1542,34 @@ def ratings_backfill_scheduler(
         )
         enqueued += 1
 
+    # Backlog alert: warn if too many problems are stuck waiting for ratings.
+    backlog_threshold = int(getattr(settings, "RATING_BACKLOG_WARN_THRESHOLD", 500))
+    total_backlog = ContestProblem.objects.filter(
+        rating_status__in=["MISSING", "TEMP_FAIL", "QUEUED"],
+    ).count()
+    if total_backlog > backlog_threshold:
+        logger.warning(
+            "Rating backlog alert: %d problems pending (threshold=%d). "
+            "Consider increasing process_rating_fetch_jobs limit or CLIST quota.",
+            total_backlog,
+            backlog_threshold,
+        )
+
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "ratings_backfill_scheduler enqueued=%s reset_attempts=%s alias_healed=%s conflicts_ids=%s conflicts_urls=%s duration_ms=%s",
+        "ratings_backfill_scheduler enqueued=%s reset_attempts=%s alias_healed=%s conflicts_ids=%s conflicts_urls=%s backlog=%s duration_ms=%s",
         enqueued,
         reset_attempts_count,
         alias_heal.get("healed", 0),
         conflict_heal.get("conflicting_problem_ids", 0),
         conflict_heal.get("conflicting_urls", 0),
+        total_backlog,
         duration_ms,
     )
     result = {
         "status": "ok",
         "enqueued": enqueued,
+        "backlog": total_backlog,
         "reset_attempts": reset_attempts_count,
         "alias_healed": alias_heal.get("healed", 0),
         "alias_contests_touched": alias_heal.get("contests_touched", 0),
@@ -1411,9 +1595,20 @@ def _update_effective_rating(cache: ProblemRatingCache) -> None:
     cache.rating_source = source
 
 
-def _apply_clist_result(cache: ProblemRatingCache, result: dict) -> str:
+def _apply_clist_result(cache: ProblemRatingCache, result: dict, *, _deferred_contest_ids: set | None = None) -> str:
     status = result.get("status")
     cache.rating_fetched_at = timezone.now()
+
+    def _notify_contests():
+        cids = list(
+            ContestProblem.objects.filter(problem_url=cache.problem_url)
+            .values_list("contest_id", flat=True)
+            .distinct()
+        )
+        if _deferred_contest_ids is not None:
+            _deferred_contest_ids.update(cids)
+        else:
+            _refresh_contest_rating_summary(cids)
 
     if status == "OK":
         cache.clist_problem_id = str(result.get("problem_id") or "")
@@ -1433,12 +1628,7 @@ def _apply_clist_result(cache: ProblemRatingCache, result: dict) -> str:
             ContestProblem.objects.filter(problem_url=cache.problem_url).update(
                 rating_status="NOT_FOUND",
             )
-            contest_ids = list(
-                ContestProblem.objects.filter(problem_url=cache.problem_url)
-                .values_list("contest_id", flat=True)
-                .distinct()
-            )
-            _refresh_contest_rating_summary(contest_ids)
+            _notify_contests()
             return "NOT_FOUND"
 
         cache.clist_rating = int(rating_value)
@@ -1457,12 +1647,7 @@ def _apply_clist_result(cache: ProblemRatingCache, result: dict) -> str:
             rating_last_ok_at=cache.rating_fetched_at,
             rating_attempts=0,
         )
-        contest_ids = list(
-            ContestProblem.objects.filter(problem_url=cache.problem_url)
-            .values_list("contest_id", flat=True)
-            .distinct()
-        )
-        _refresh_contest_rating_summary(contest_ids)
+        _notify_contests()
         update_scores_for_problem_url(cache.platform, cache.problem_url)
         return "OK"
 
@@ -1489,12 +1674,7 @@ def _apply_clist_result(cache: ProblemRatingCache, result: dict) -> str:
                     rating_last_ok_at=cache.rating_fetched_at,
                     rating_attempts=0,
                 )
-                contest_ids = list(
-                    ContestProblem.objects.filter(problem_url=cache.problem_url)
-                    .values_list("contest_id", flat=True)
-                    .distinct()
-                )
-                _refresh_contest_rating_summary(contest_ids)
+                _notify_contests()
                 update_scores_for_problem_url(cache.platform, cache.problem_url)
                 logger.info(
                     "CF alias rating resolved problem_url=%s source_url=%s source_contest=%s rating=%s",
@@ -1512,12 +1692,7 @@ def _apply_clist_result(cache: ProblemRatingCache, result: dict) -> str:
             rating_status="NOT_FOUND",
             rating_attempts=0,
         )
-        contest_ids = list(
-            ContestProblem.objects.filter(problem_url=cache.problem_url)
-            .values_list("contest_id", flat=True)
-            .distinct()
-        )
-        _refresh_contest_rating_summary(contest_ids)
+        _notify_contests()
         return "NOT_FOUND"
 
     cache.status = "TEMP_FAIL"
@@ -1526,17 +1701,12 @@ def _apply_clist_result(cache: ProblemRatingCache, result: dict) -> str:
     ContestProblem.objects.filter(problem_url=cache.problem_url).update(
         rating_status="TEMP_FAIL",
     )
-    contest_ids = list(
-        ContestProblem.objects.filter(problem_url=cache.problem_url)
-        .values_list("contest_id", flat=True)
-        .distinct()
-    )
-    _refresh_contest_rating_summary(contest_ids)
+    _notify_contests()
     return "TEMP_FAIL"
 
 
 @shared_task
-def process_rating_fetch_jobs(limit: int = 5) -> dict:
+def process_rating_fetch_jobs(limit: int = 10) -> dict:
     started = time.monotonic()
     now = timezone.now()
     qs = (
@@ -1546,6 +1716,7 @@ def process_rating_fetch_jobs(limit: int = 5) -> dict:
     )[:limit]
 
     processed = 0
+    deferred_contest_ids: set[int] = set()
     for job in qs:
         job.status = "RUNNING"
         job.locked_at = now
@@ -1561,12 +1732,15 @@ def process_rating_fetch_jobs(limit: int = 5) -> dict:
             cache.save(update_fields=["platform"])
 
         _mark_rating_fetch_attempt(job.platform, job.problem_url, attempt_at=now)
+        problem_name = ContestProblem.objects.filter(
+            platform=job.platform, problem_url=job.problem_url,
+        ).values_list("name", flat=True).first()
         result = ClistClient.fetch_problem_rating(
             cache.platform,
             cache.problem_url,
-            problem_name=None,
+            problem_name=problem_name,
         )
-        status = _apply_clist_result(cache, result)
+        status = _apply_clist_result(cache, result, _deferred_contest_ids=deferred_contest_ids)
 
         if status in {"OK", "NOT_FOUND"}:
             job.status = "DONE"
@@ -1577,6 +1751,9 @@ def process_rating_fetch_jobs(limit: int = 5) -> dict:
             job.next_retry_at = now + timedelta(seconds=backoff)
         job.save(update_fields=["status", "next_retry_at"])
         processed += 1
+
+    if deferred_contest_ids:
+        _refresh_contest_rating_summary(list(deferred_contest_ids))
 
     duration_ms = int((time.monotonic() - started) * 1000)
     result = {"status": "ok", "processed": processed, "duration_ms": duration_ms}

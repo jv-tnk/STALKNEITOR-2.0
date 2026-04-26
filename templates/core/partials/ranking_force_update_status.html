@@ -1,0 +1,48 @@
+{% if status == "error" %}
+    <div class="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+        {{ message }}
+    </div>
+{% elif status == "warning" %}
+    <div class="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+        {{ message }}
+    </div>
+{% else %}
+    <div class="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+        {{ message }}
+    </div>
+{% endif %}
+
+{% if details %}
+    <div class="mt-2 space-y-1 text-[11px] text-slate-400">
+        {% if auto_refresh %}
+            <div class="text-emerald-300">Tabela atualizando automaticamente por ~2 minutos.</div>
+        {% endif %}
+        {% if details.scope == "global" %}
+            <div>Escopo: todos os alunos.</div>
+        {% else %}
+            <div>Escopo: sua conta + recomputo global dos pontos.</div>
+        {% endif %}
+        {% if details.mode == "inline" %}
+            <div>Sincronizados agora: {{ details.students_processed }}/{{ details.students_total }}</div>
+        {% else %}
+            <div>Sincronizacoes enfileiradas: {{ details.students_queued }}/{{ details.students_total }}</div>
+        {% endif %}
+        {% if details.score_windows_recomputed %}
+            <div>Janelas 7d/30d/temporada recalculadas.</div>
+        {% elif details.score_windows_queued %}
+            <div>Recalculo das janelas enfileirado.</div>
+        {% endif %}
+        {% if details.snapshots_queued %}
+            <div>Snapshot de ranking enfileirado.</div>
+        {% endif %}
+        {% if details.errors %}
+            <div class="text-amber-300">Falhas: {{ details.errors|length }}</div>
+        {% endif %}
+        {% if details.score_windows_error %}
+            <div class="text-amber-300">Recalculo: {{ details.score_windows_error }}</div>
+        {% endif %}
+        {% if details.snapshot_error %}
+            <div class="text-amber-300">Snapshot: {{ details.snapshot_error }}</div>
+        {% endif %}
+    </div>
+{% endif %}

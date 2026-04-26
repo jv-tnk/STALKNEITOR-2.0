@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, views_ranking_refresh
 
 urlpatterns = [
     path('', views.dashboard, name='index'), # Redireciona o index para o dashboard
@@ -37,6 +37,7 @@ urlpatterns = [
     path('solutions/approve/', views.solutions_approve, name='solutions_approve'),
     path('ranking/', views.ranking, name='ranking'),
     path('ranking/list/', views.ranking_list, name='ranking_list'),
+    path('ranking/force-update/', views_ranking_refresh.force_ranking_update, name='ranking_force_update'),
     path('treino/', views.train, name='train'),
     path('treino/session/start/', views.train_session_start, name='train_session_start'),
     path('treino/session/<int:session_id>/', views.train_session, name='train_session'),

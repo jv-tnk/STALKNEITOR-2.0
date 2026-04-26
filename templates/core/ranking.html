@@ -103,6 +103,8 @@
             <input type="hidden" name="end_date" id="endDateInput" value="">
             <input type="hidden" name="movers_only" id="moversInput" value="0">
             <input type="hidden" name="only_with_rating" id="ratingOnlyInput" value="0">
+            <input type="hidden" name="contest_type" id="contestTypeInput" value="{{ contest_type|default:'all' }}">
+            <input type="hidden" name="exclude_provisional" id="excludeProvisionalInput" value="{% if exclude_provisional %}1{% else %}0{% endif %}">
             <input type="hidden" name="min_solves" id="minSolvesInput" value="">
             <input type="hidden" name="order_by" id="orderByInput" value="score">
             <input type="hidden" name="page" id="pageInput" value="1">
@@ -169,6 +171,18 @@
             <details class="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2">
                 <summary class="cursor-pointer text-xs text-slate-400">Avançado</summary>
                 <div class="mt-3 space-y-3 text-xs text-slate-400">
+                    <label id="contest-type-wrap" class="block">
+                        Tipo de contest
+                        <select id="contest-type" class="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100">
+                            {% for option in contest_type_options %}
+                                <option value="{{ option.value }}" {% if contest_type == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label id="exclude-provisional-wrap" class="flex items-center justify-between">
+                        <span>Não contar pontos parciais</span>
+                        <input id="exclude-provisional-toggle" type="checkbox" class="h-4 w-4" {% if exclude_provisional %}checked{% endif %}>
+                    </label>
                     <label class="flex items-center justify-between">
                         <span>Somente com rating</span>
                         <input id="rating-only-toggle" type="checkbox" class="h-4 w-4">
@@ -202,7 +216,7 @@
     <!-- Results -->
     <div class="w-full">
         <div id="ranking-results"
-             hx-get="{% url 'ranking_list' %}?mode={{ mode }}&source={{ category }}&window={{ window }}{% if season_id %}&season_id={{ season_id }}{% endif %}{% if season_contest_only %}&season_contest_only=1{% endif %}"
+             hx-get="{% url 'ranking_list' %}?mode={{ mode }}&source={{ category }}&window={{ window }}{% if season_id %}&season_id={{ season_id }}{% endif %}{% if season_contest_only %}&season_contest_only=1{% endif %}{% if contest_type and contest_type != 'all' %}&contest_type={{ contest_type }}{% endif %}{% if exclude_provisional %}&exclude_provisional=1{% endif %}"
              hx-trigger="load"
              hx-target="#ranking-results"
              hx-swap="innerHTML">
@@ -252,6 +266,12 @@
     const seasonContestOnlyInput = document.getElementById('seasonContestOnlyInput');
     const seasonContestOnlyCheckbox = document.getElementById('season-contest-only-checkbox');
     const seasonContestOnlyWrap = document.getElementById('season-contest-only-wrap');
+    const contestTypeInput = document.getElementById('contestTypeInput');
+    const contestTypeSelect = document.getElementById('contest-type');
+    const contestTypeWrap = document.getElementById('contest-type-wrap');
+    const excludeProvisionalInput = document.getElementById('excludeProvisionalInput');
+    const excludeProvisionalToggle = document.getElementById('exclude-provisional-toggle');
+    const excludeProvisionalWrap = document.getElementById('exclude-provisional-wrap');
     const rankingForceButton = document.getElementById('ranking-force-update-button');
     const rankingForceSpinner = document.getElementById('ranking-force-update-spinner');
     const rankingForceIcon = document.getElementById('ranking-force-update-icon');
@@ -274,6 +294,10 @@
         drawer.classList.remove('translate-y-full', 'md:-translate-x-full');
         document.getElementById('movers-toggle').checked = document.getElementById('moversInput').value === '1';
         document.getElementById('rating-only-toggle').checked = document.getElementById('ratingOnlyInput').value === '1';
+        if (contestTypeSelect && contestTypeInput) contestTypeSelect.value = contestTypeInput.value || 'all';
+        if (excludeProvisionalToggle && excludeProvisionalInput) {
+            excludeProvisionalToggle.checked = excludeProvisionalInput.value === '1';
+        }
         document.getElementById('min-solves').value = document.getElementById('minSolvesInput').value || '';
         document.getElementById('order-by').value = document.getElementById('orderByInput').value || 'score';
         setActive(modeButtons, document.getElementById('modeInput').value, 'modeInput', 'mode');
@@ -282,10 +306,33 @@
         if (seasonSelect && seasonIdInput && seasonIdInput.value) {
             seasonSelect.value = seasonIdInput.value;
         }
+        syncContestTypeOptions();
     };
     const closeDrawer = () => {
         overlay.classList.add('hidden');
         drawer.classList.add('translate-y-full', 'md:-translate-x-full');
+    };
+
+    const normalizeContestTypeForSource = () => {
+        if (!contestTypeInput) return;
+        const source = document.getElementById('sourceInput')?.value || 'overall';
+        const value = contestTypeInput.value || 'all';
+        const incompatible = (source === 'cf' && value.startsWith('ac_')) || (source === 'ac' && value.startsWith('cf_'));
+        if (incompatible) {
+            contestTypeInput.value = 'all';
+            if (contestTypeSelect) contestTypeSelect.value = 'all';
+        }
+    };
+
+    const syncContestTypeOptions = () => {
+        if (!contestTypeSelect) return;
+        const source = document.getElementById('sourceInput')?.value || 'overall';
+        contestTypeSelect.querySelectorAll('option').forEach(option => {
+            const value = option.value || 'all';
+            const incompatible = (source === 'cf' && value.startsWith('ac_')) || (source === 'ac' && value.startsWith('cf_'));
+            option.disabled = incompatible;
+        });
+        normalizeContestTypeForSource();
     };
 
     const syncSeasonContestOnlyControl = () => {
@@ -293,10 +340,25 @@
         if (seasonContestOnlyCheckbox) {
             seasonContestOnlyCheckbox.disabled = !isPointsMode;
         }
+        if (contestTypeSelect) {
+            contestTypeSelect.disabled = !isPointsMode;
+        }
+        if (excludeProvisionalToggle) {
+            excludeProvisionalToggle.disabled = !isPointsMode;
+        }
         if (seasonContestOnlyWrap) {
             seasonContestOnlyWrap.classList.toggle('opacity-50', !isPointsMode);
             seasonContestOnlyWrap.classList.toggle('cursor-not-allowed', !isPointsMode);
         }
+        if (contestTypeWrap) {
+            contestTypeWrap.classList.toggle('opacity-50', !isPointsMode);
+            contestTypeWrap.classList.toggle('cursor-not-allowed', !isPointsMode);
+        }
+        if (excludeProvisionalWrap) {
+            excludeProvisionalWrap.classList.toggle('opacity-50', !isPointsMode);
+            excludeProvisionalWrap.classList.toggle('cursor-not-allowed', !isPointsMode);
+        }
+        syncContestTypeOptions();
     };
 
     toggle?.addEventListener('click', openDrawer);
@@ -334,6 +396,7 @@
     const updateSource = (value) => {
         setActive(sourceButtons, value, 'sourceInput', 'source');
         setQuickActive(quickSourceButtons, value);
+        syncContestTypeOptions();
     };
 
     const updateWindow = (value) => {
@@ -398,6 +461,13 @@
     applyBtn?.addEventListener('click', () => {
         document.getElementById('moversInput').value = document.getElementById('movers-toggle').checked ? '1' : '0';
         document.getElementById('ratingOnlyInput').value = document.getElementById('rating-only-toggle').checked ? '1' : '0';
+        if (contestTypeInput && contestTypeSelect) {
+            contestTypeInput.value = contestTypeSelect.value || 'all';
+        }
+        normalizeContestTypeForSource();
+        if (excludeProvisionalInput && excludeProvisionalToggle) {
+            excludeProvisionalInput.value = excludeProvisionalToggle.checked ? '1' : '0';
+        }
         document.getElementById('minSolvesInput').value = document.getElementById('min-solves').value;
         document.getElementById('orderByInput').value = document.getElementById('order-by').value;
         if (seasonSelect && seasonIdInput) {
@@ -415,6 +485,10 @@
         document.getElementById('endDateInput').value = '';
         document.getElementById('moversInput').value = '0';
         document.getElementById('ratingOnlyInput').value = '0';
+        if (contestTypeInput) contestTypeInput.value = 'all';
+        if (contestTypeSelect) contestTypeSelect.value = 'all';
+        if (excludeProvisionalInput) excludeProvisionalInput.value = '0';
+        if (excludeProvisionalToggle) excludeProvisionalToggle.checked = false;
         document.getElementById('minSolvesInput').value = '';
         document.getElementById('orderByInput').value = 'score';
         document.getElementById('min-solves').value = '';
@@ -489,6 +563,12 @@
             if (seasonContestOnlyCheckbox && seasonContestOnlyInput) {
                 seasonContestOnlyCheckbox.checked = seasonContestOnlyInput.value === '1';
             }
+            if (contestTypeSelect && contestTypeInput) {
+                contestTypeSelect.value = contestTypeInput.value || 'all';
+            }
+            if (excludeProvisionalToggle && excludeProvisionalInput) {
+                excludeProvisionalToggle.checked = excludeProvisionalInput.value === '1';
+            }
             syncSeasonContestOnlyControl();
         }
     });
@@ -562,6 +642,12 @@
                 document.getElementById('moversInput').value = value;
             } else if (key === 'only_with_rating') {
                 document.getElementById('ratingOnlyInput').value = value;
+            } else if (key === 'contest_type') {
+                if (contestTypeInput) contestTypeInput.value = value;
+                if (contestTypeSelect) contestTypeSelect.value = value;
+            } else if (key === 'exclude_provisional') {
+                if (excludeProvisionalInput) excludeProvisionalInput.value = value;
+                if (excludeProvisionalToggle) excludeProvisionalToggle.checked = value === '1';
             } else if (key === 'min_solves') {
                 document.getElementById('minSolvesInput').value = value;
                 document.getElementById('min-solves').value = value;

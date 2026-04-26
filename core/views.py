@@ -585,6 +585,119 @@ def _build_points_rows_from_events(events, category: str, scope: str, turma_id: 
     return rows
 
 
+def _ranking_contest_type_options() -> list[dict]:
+    return [
+        {"value": "all", "label": "Todos"},
+        {"value": "ac_ABC", "label": "AC ABC"},
+        {"value": "ac_ARC", "label": "AC ARC"},
+        {"value": "ac_AGC", "label": "AC AGC"},
+        {"value": "ac_AHC", "label": "AC AHC"},
+        {"value": "ac_Other", "label": "AC Other"},
+        {"value": "cf_Div1", "label": "CF Div. 1"},
+        {"value": "cf_Div2", "label": "CF Div. 2"},
+        {"value": "cf_Div3", "label": "CF Div. 3"},
+        {"value": "cf_Div4", "label": "CF Div. 4"},
+        {"value": "cf_Educational", "label": "CF Educational"},
+        {"value": "cf_Global", "label": "CF Global"},
+        {"value": "cf_Other", "label": "CF Other"},
+    ]
+
+
+def _ranking_contest_type_map() -> dict[str, dict]:
+    return {
+        option["value"]: option
+        for option in _ranking_contest_type_options()
+    }
+
+
+def _normalize_ranking_contest_type(
+    contest_type: str | None,
+    category: str,
+    contest_type_map: dict[str, dict] | None = None,
+) -> str:
+    contest_type_map = contest_type_map or _ranking_contest_type_map()
+    contest_type = contest_type or "all"
+    if contest_type not in contest_type_map:
+        return "all"
+    if category == "cf" and contest_type.startswith("ac_"):
+        return "all"
+    if category == "ac" and contest_type.startswith("cf_"):
+        return "all"
+    return contest_type
+
+
+def _filter_events_to_contest_type(events, contest_type: str):
+    if contest_type == "all":
+        return events
+    if contest_type.startswith("ac_"):
+        platform = "AC"
+        field = "category"
+        value = contest_type.removeprefix("ac_")
+    elif contest_type.startswith("cf_"):
+        platform = "CF"
+        field = "division"
+        value = contest_type.removeprefix("cf_")
+    else:
+        return events
+
+    contest_match = Contest.objects.filter(
+        platform=platform,
+        contest_id=OuterRef("contest_id"),
+    ).filter(**{field: value})
+    return events.filter(platform=platform).annotate(
+        contest_type_match=Exists(contest_match),
+    ).filter(contest_type_match=True)
+
+
+def _points_events_for_window(window: str, season_start_dt, season_end_dt, start_date: str = "", end_date: str = ""):
+    events = ScoreEvent.objects.all()
+    now = timezone.now()
+    if window == "7d":
+        events = events.filter(solved_at__gte=now - timedelta(days=7), solved_at__lte=now)
+    elif window == "30d":
+        events = events.filter(solved_at__gte=now - timedelta(days=30), solved_at__lte=now)
+    elif window == "season":
+        if season_start_dt and season_end_dt:
+            events = events.filter(solved_at__gte=season_start_dt, solved_at__lte=season_end_dt)
+        else:
+            events = events.none()
+    elif window == "custom":
+        try:
+            custom_start = datetime.fromisoformat(start_date).date()
+            custom_end = datetime.fromisoformat(end_date).date()
+        except ValueError:
+            return ScoreEvent.objects.none()
+        if custom_end < custom_start:
+            return ScoreEvent.objects.none()
+        start_dt = timezone.make_aware(datetime.combine(custom_start, datetime.min.time()))
+        end_dt = timezone.make_aware(datetime.combine(custom_end, datetime.max.time()))
+        events = events.filter(solved_at__gte=start_dt, solved_at__lte=end_dt)
+    return events
+
+
+def _apply_points_event_filters(
+    events,
+    *,
+    category: str,
+    contest_type: str,
+    exclude_provisional: bool,
+    season_contest_only: bool,
+    season_start_dt,
+    season_end_dt,
+):
+    if category == "cf":
+        events = events.filter(platform="CF")
+    elif category == "ac":
+        events = events.filter(platform="AC")
+    if contest_type != "all":
+        events = _filter_events_to_contest_type(events, contest_type)
+    if exclude_provisional:
+        events = events.filter(rating_is_provisional=False)
+    if season_contest_only:
+        events = _filter_events_to_season_contests(events, season_start_dt, season_end_dt)
+    return events
+
+
 def _is_truthy_param(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on", "sim"}
 
@@ -2992,6 +3105,14 @@ def ranking(request):
     turma_id = None
     turmas = []
     season_contest_only = _is_truthy_param(request.GET.get("season_contest_only"))
+    contest_type_options = _ranking_contest_type_options()
+    contest_type_map = _ranking_contest_type_map()
+    contest_type = _normalize_ranking_contest_type(
+        request.GET.get("contest_type", "all"),
+        category,
+        contest_type_map,
+    )
+    exclude_provisional = _is_truthy_param(request.GET.get("exclude_provisional"))
     season_id = request.GET.get("season_id")
     seasons, selected_season, season_start_dt, season_end_dt = _resolve_season_selection(season_id if window == "season" else None)
 
@@ -3010,6 +3131,10 @@ def ranking(request):
     subtitle = f"{mode_label} • {source_label} • {window_label}"
     if mode == "points" and season_contest_only:
         subtitle += " • Apenas contests da temporada"
+    if mode == "points" and contest_type != "all":
+        subtitle += f" • {contest_type_map[contest_type]['label']}"
+    if mode == "points" and exclude_provisional:
+        subtitle += " • Sem parciais"
 
     context = {
         "mode": mode,
@@ -3026,6 +3151,9 @@ def ranking(request):
         "season_end_dt": season_end_dt,
         "season_id": selected_season.id if selected_season else "",
         "season_contest_only": season_contest_only,
+        "contest_type": contest_type,
+        "contest_type_options": contest_type_options,
+        "exclude_provisional": exclude_provisional,
     }
     context.update(_build_welcome_tour_context(request, "ranking"))
 
@@ -3083,9 +3211,24 @@ def ranking_list(request):
     min_solves = int(min_solves) if min_solves and min_solves.isdigit() else None
     movers_only = request.GET.get("movers_only") == "1"
     only_with_rating = request.GET.get("only_with_rating") == "1"
+    contest_type_options = _ranking_contest_type_options()
+    contest_type_map = _ranking_contest_type_map()
+    contest_type = _normalize_ranking_contest_type(
+        request.GET.get("contest_type", "all"),
+        category,
+        contest_type_map,
+    )
+    exclude_provisional = _is_truthy_param(request.GET.get("exclude_provisional"))
     order_by = request.GET.get("order_by") or "score"
     start_date = request.GET.get("start_date") or ""
     end_date = request.GET.get("end_date") or ""
+    point_event_filters_active = mode == "points" and (
+        contest_type != "all"
+        or exclude_provisional
+        or season_contest_only
+        or window == "custom"
+        or (window == "season" and selected_season and not selected_season.is_active)
+    )
 
     if mode == "how":
         mode_label = "Como funciona"
@@ -3117,6 +3260,9 @@ def ranking_list(request):
             "min_solves": min_solves,
             "movers_only": movers_only,
             "only_with_rating": only_with_rating,
+            "contest_type": contest_type,
+            "contest_type_options": contest_type_options,
+            "exclude_provisional": exclude_provisional,
             "order_by": order_by,
             "page": 1,
             "per_page": 25,
@@ -3154,15 +3300,16 @@ def ranking_list(request):
             custom_start = None
             custom_end = None
         if custom_start and custom_end:
-            start_dt = timezone.make_aware(datetime.combine(custom_start, datetime.min.time()))
-            end_dt = timezone.make_aware(datetime.combine(custom_end, datetime.max.time()))
-            events = ScoreEvent.objects.filter(solved_at__gte=start_dt, solved_at__lte=end_dt)
-            if category == "cf":
-                events = events.filter(platform="CF")
-            elif category == "ac":
-                events = events.filter(platform="AC")
-            if season_contest_only:
-                events = _filter_events_to_season_contests(events, season_start_dt, season_end_dt)
+            events = _points_events_for_window("custom", season_start_dt, season_end_dt, start_date, end_date)
+            events = _apply_points_event_filters(
+                events,
+                category=category,
+                contest_type=contest_type,
+                exclude_provisional=exclude_provisional,
+                season_contest_only=season_contest_only,
+                season_start_dt=season_start_dt,
+                season_end_dt=season_end_dt,
+            )
             rows = _build_points_rows_from_events(events, category, scope, turma_id)
             rows_have_activity_solves = True
         else:
@@ -3170,56 +3317,17 @@ def ranking_list(request):
 
     if not rows:
         if mode == "points":
-            if season_contest_only:
-                events = ScoreEvent.objects.all()
-                now = timezone.now()
-                if window == "7d":
-                    events = events.filter(solved_at__gte=now - timedelta(days=7), solved_at__lte=now)
-                elif window == "30d":
-                    events = events.filter(solved_at__gte=now - timedelta(days=30), solved_at__lte=now)
-                elif window == "season":
-                    if season_start_dt and season_end_dt:
-                        events = events.filter(solved_at__gte=season_start_dt, solved_at__lte=season_end_dt)
-                    else:
-                        events = events.none()
-                elif window == "custom":
-                    if start_date and end_date:
-                        try:
-                            custom_start = datetime.fromisoformat(start_date).date()
-                            custom_end = datetime.fromisoformat(end_date).date()
-                        except ValueError:
-                            custom_start = None
-                            custom_end = None
-                        if custom_start and custom_end and custom_end >= custom_start:
-                            start_dt = timezone.make_aware(datetime.combine(custom_start, datetime.min.time()))
-                            end_dt = timezone.make_aware(datetime.combine(custom_end, datetime.max.time()))
-                            events = events.filter(solved_at__gte=start_dt, solved_at__lte=end_dt)
-                        else:
-                            window = "season"
-                            if season_start_dt and season_end_dt:
-                                events = events.filter(solved_at__gte=season_start_dt, solved_at__lte=season_end_dt)
-                            else:
-                                events = events.none()
-                    else:
-                        window = "season"
-                        if season_start_dt and season_end_dt:
-                            events = events.filter(solved_at__gte=season_start_dt, solved_at__lte=season_end_dt)
-                        else:
-                            events = events.none()
-
-                if category == "cf":
-                    events = events.filter(platform="CF")
-                elif category == "ac":
-                    events = events.filter(platform="AC")
-                events = _filter_events_to_season_contests(events, season_start_dt, season_end_dt)
-                rows = _build_points_rows_from_events(events, category, scope, turma_id)
-                rows_have_activity_solves = True
-            elif window == "season" and selected_season and not selected_season.is_active:
-                events = ScoreEvent.objects.filter(solved_at__gte=season_start_dt, solved_at__lte=season_end_dt)
-                if category == "cf":
-                    events = events.filter(platform="CF")
-                elif category == "ac":
-                    events = events.filter(platform="AC")
+            if point_event_filters_active:
+                events = _points_events_for_window(window, season_start_dt, season_end_dt, start_date, end_date)
+                events = _apply_points_event_filters(
+                    events,
+                    category=category,
+                    contest_type=contest_type,
+                    exclude_provisional=exclude_provisional,
+                    season_contest_only=season_contest_only,
+                    season_start_dt=season_start_dt,
+                    season_end_dt=season_end_dt,
+                )
                 rows = _build_points_rows_from_events(events, category, scope, turma_id)
                 rows_have_activity_solves = True
             else:
@@ -3266,6 +3374,16 @@ def ranking_list(request):
             events = events.filter(platform="AC")
         if mode == "points" and season_contest_only:
             events = _filter_events_to_season_contests(events, season_start_dt, season_end_dt)
+        if mode == "points":
+            events = _apply_points_event_filters(
+                events,
+                category=category,
+                contest_type=contest_type,
+                exclude_provisional=exclude_provisional,
+                season_contest_only=False,
+                season_start_dt=season_start_dt,
+                season_end_dt=season_end_dt,
+            )
         solves = events.values("aluno_id").annotate(count=Count("id"))
         solves_map = {row["aluno_id"]: row["count"] for row in solves}
         provisional = (
@@ -3365,6 +3483,18 @@ def ranking_list(request):
             "key": "season_contest_only",
             "value": "0",
         })
+    if mode == "points" and contest_type != "all":
+        chips.append({
+            "label": f"Tipo: {contest_type_map[contest_type]['label']}",
+            "key": "contest_type",
+            "value": "all",
+        })
+    if mode == "points" and exclude_provisional:
+        chips.append({
+            "label": "Sem pontos parciais",
+            "key": "exclude_provisional",
+            "value": "0",
+        })
     if movers_only:
         chips.append({"label": "Só quem subiu", "key": "movers_only", "value": "0"})
     if only_with_rating:
@@ -3385,6 +3515,10 @@ def ranking_list(request):
         filters_count += 1
     if mode == "points" and season_contest_only:
         filters_count += 1
+    if mode == "points" and contest_type != "all":
+        filters_count += 1
+    if mode == "points" and exclude_provisional:
+        filters_count += 1
     if movers_only:
         filters_count += 1
     if only_with_rating:
@@ -3397,6 +3531,10 @@ def ranking_list(request):
     subtitle = f"{mode_label} • {source_label} • {window_label}"
     if mode == "points" and season_contest_only:
         subtitle += " • Apenas contests da temporada"
+    if mode == "points" and contest_type != "all":
+        subtitle += f" • {contest_type_map[contest_type]['label']}"
+    if mode == "points" and exclude_provisional:
+        subtitle += " • Sem parciais"
 
     next_goal = None
     if current_user_rank and all_rows:
@@ -3434,6 +3572,9 @@ def ranking_list(request):
         "min_solves": min_solves,
         "movers_only": movers_only,
         "only_with_rating": only_with_rating,
+        "contest_type": contest_type,
+        "contest_type_options": contest_type_options,
+        "exclude_provisional": exclude_provisional,
         "order_by": order_by,
         "page": page,
         "per_page": per_page,

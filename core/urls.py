@@ -48,6 +48,7 @@ urlpatterns = [
     path('treino/queue/<int:item_id>/remove/', views.train_queue_remove, name='train_queue_remove'),
     path('treino/block/', views.train_block_problem, name='train_block_problem'),
     path('contests/', views.contests_overview, name='contests_overview'),
+    path('contests/matrix/', views.contests_matrix, name='contests_matrix'),
     path(
         'contests/snippet/<str:platform>/<str:contest_id>/problems',
         views.contest_problems_snippet,

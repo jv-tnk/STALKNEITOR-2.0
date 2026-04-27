@@ -3883,6 +3883,72 @@ def _build_contest_rows(contests_page: list[Contest]) -> tuple[list[dict], int, 
 
 
 @login_required
+def contests_matrix(request):
+    from .services.contest_matrix import build_contest_matrix
+
+    platform = (request.GET.get("platform") or "AC").upper()
+    if platform not in {"CF", "AC"}:
+        platform = "AC"
+
+    valid_categories = {choice[0] for choice in Contest.CATEGORY_CHOICES}
+    valid_divisions = {choice[0] for choice in Contest.DIVISION_CHOICES}
+
+    category = request.GET.get("category") or ("ABC" if platform == "AC" else "all")
+    if category != "all" and category not in valid_categories:
+        category = "ABC" if platform == "AC" else "all"
+
+    division = request.GET.get("division") or "all"
+    if division != "all" and division not in valid_divisions:
+        division = "all"
+
+    year_param = request.GET.get("year")
+    selected_year: int | None = None
+    if year_param and year_param.isdigit():
+        selected_year = int(year_param)
+
+    try:
+        limit_contests = int(request.GET.get("limit") or 10)
+    except (TypeError, ValueError):
+        limit_contests = 10
+    limit_contests = max(3, min(limit_contests, 30))
+    show_villains = _is_truthy_param(request.GET.get("show_villains"))
+
+    matrix = build_contest_matrix(
+        platform=platform,
+        category=category if platform == "AC" else None,
+        division=division if platform == "CF" else None,
+        year=selected_year,
+        limit_contests=limit_contests,
+        include_villains=show_villains,
+    )
+
+    available_years = list(
+        Contest.objects.filter(platform=platform)
+        .values_list("year", flat=True)
+        .distinct()
+        .order_by("-year")
+    )
+    if not available_years:
+        available_years = [timezone.now().year]
+
+    context = {
+        "matrix": matrix,
+        "platform": platform,
+        "category": category,
+        "division": division,
+        "selected_year": selected_year,
+        "available_years": available_years,
+        "ac_categories": [c[0] for c in Contest.CATEGORY_CHOICES],
+        "cf_divisions": [c[0] for c in Contest.DIVISION_CHOICES],
+        "limit_contests": limit_contests,
+        "limit_options": [5, 10, 15, 20, 30],
+        "show_villains": show_villains,
+    }
+    context.update(_build_welcome_tour_context(request, "contests_matrix"))
+    return render(request, "core/contest_matrix.html", context)
+
+
+@login_required
 def admin_panel(request):
     if not request.user.is_superuser:
         return HttpResponseForbidden("Acesso restrito.")

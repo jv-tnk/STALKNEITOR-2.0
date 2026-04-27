@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="space-y-6">
+    {% include "core/partials/welcome_tour_card.html" %}
+
+    <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+            <p class="eyebrow">Contests</p>
+            <h2 class="text-2xl font-semibold text-slate-100">Matriz de submissões</h2>
+            <p class="text-sm text-slate-400">
+                Cada célula lista as letras dos problemas resolvidos por aquele aluno naquele contest.
+                Clique numa letra para abrir a submissão na plataforma.
+            </p>
+        </div>
+        <div class="flex flex-wrap gap-3 text-sm text-slate-300">
+            <div class="px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700">
+                <span class="text-slate-400">Contests exibidos</span>
+                <span class="font-semibold ml-2">{{ matrix.contests|length }}</span>
+            </div>
+            <div class="px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700">
+                <span class="text-slate-400">Alunos</span>
+                <span class="font-semibold ml-2">{{ matrix.rows|length }}</span>
+            </div>
+            {% if show_villains %}
+                <div class="px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700">
+                    <span class="text-slate-400">Vilões visíveis</span>
+                    <span class="font-semibold ml-2">{{ matrix.villain_count|default:0 }}</span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="get" class="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 md:grid-cols-5">
+        <label class="text-xs text-slate-400">
+            Plataforma
+            <select id="matrixPlatform" name="platform"
+                    class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100">
+                <option value="AC" {% if platform == 'AC' %}selected{% endif %}>AtCoder</option>
+                <option value="CF" {% if platform == 'CF' %}selected{% endif %}>Codeforces</option>
+            </select>
+        </label>
+        <label class="text-xs text-slate-400" id="matrixCategoryWrap" {% if platform == 'CF' %}hidden{% endif %}>
+            Categoria (AtCoder)
+            <select name="category"
+                    class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100">
+                <option value="all" {% if category == 'all' %}selected{% endif %}>Todas</option>
+                {% for c in ac_categories %}
+                    <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="text-xs text-slate-400" id="matrixDivisionWrap" {% if platform == 'AC' %}hidden{% endif %}>
+            Divisão (Codeforces)
+            <select name="division"
+                    class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100">
+                <option value="all" {% if division == 'all' %}selected{% endif %}>Todas</option>
+                {% for d in cf_divisions %}
+                    <option value="{{ d }}" {% if division == d %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="text-xs text-slate-400">
+            Ano
+            <select name="year"
+                    class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100">
+                <option value="" {% if not selected_year %}selected{% endif %}>Todos</option>
+                {% for y in available_years %}
+                    <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="text-xs text-slate-400">
+            Quantos contests
+            <select name="limit"
+                    class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100">
+                {% for opt in limit_options %}
+                    <option value="{{ opt }}" {% if limit_contests == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="md:col-span-5 flex flex-col gap-2 border-t border-slate-800 pt-3 md:flex-row md:items-center md:justify-between">
+            <label class="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:bg-slate-900">
+                <input id="matrixShowVillains"
+                       type="checkbox"
+                       name="show_villains"
+                       value="1"
+                       class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950"
+                       {% if show_villains %}checked{% endif %}>
+                <span>Ver vilões</span>
+            </label>
+            <div class="flex justify-end gap-2">
+                <a href="{% url 'contests_matrix' %}"
+                   class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">Limpar</a>
+                <button type="submit"
+                        class="rounded-lg border border-indigo-500/60 bg-indigo-500/15 px-3 py-2 text-xs font-medium text-indigo-100 hover:bg-indigo-500/25">
+                    Aplicar filtros
+                </button>
+            </div>
+        </div>
+    </form>
+
+    {% if matrix.contests and matrix.rows %}
+        <div class="rounded-xl border border-slate-800 bg-slate-950/40 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-900/80 text-slate-300">
+                        <tr>
+                            <th class="sticky left-0 z-10 bg-slate-900/95 px-3 py-3 text-left font-medium border-b border-slate-800">
+                                Posição / Aluno
+                            </th>
+                            {% for contest in matrix.contests %}
+                                <th class="px-3 py-3 text-center font-medium border-b border-slate-800 whitespace-nowrap">
+                                    <a href="{% url 'contest_detail' contest.platform contest.contest_id %}"
+                                       class="text-slate-100 hover:text-indigo-300 underline-offset-2 hover:underline"
+                                       title="{{ contest.title }}">
+                                        {{ contest.contest_id }}
+                                    </a>
+                                    <div class="mt-0.5 text-[10px] text-slate-500 font-normal">
+                                        {{ contest.problem_count }} prob.
+                                    </div>
+                                </th>
+                            {% endfor %}
+                            <th class="px-3 py-3 text-center font-medium border-b border-slate-800 whitespace-nowrap"
+                                title="Total de problemas resolvidos nos contests exibidos">
+                                Solves
+                            </th>
+                            <th class="px-3 py-3 text-center font-medium border-b border-slate-800 whitespace-nowrap"
+                                title="Soma dos pontos do ranking ganhos nos contests exibidos">
+                                Pontos
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in matrix.rows %}
+                            <tr class="border-b border-slate-900/80 hover:bg-slate-900/40">
+                                <td class="sticky left-0 z-10 bg-slate-950/95 px-3 py-2 font-medium whitespace-nowrap">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex min-w-8 justify-end font-mono text-xs text-slate-500">
+                                            #{{ row.position }}
+                                        </span>
+                                        <a href="{% url 'user_profile' row.username %}"
+                                           class="{% if row.is_villain %}text-rose-300 hover:text-rose-200{% else %}text-slate-100 hover:text-indigo-300{% endif %} underline-offset-2 hover:underline">
+                                            {{ row.username }}
+                                        </a>
+                                        {% if row.is_villain %}
+                                            <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-100"
+                                                  title="Grupo de vilões: {{ row.villain_group_name|default:'Vilão' }}">
+                                                {{ row.villain_group_name|default:"Vilão" }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% for cell in row.cells %}
+                                    <td class="px-3 py-2 text-center align-middle whitespace-nowrap">
+                                        {% if cell.items %}
+                                            <span class="inline-flex flex-wrap justify-center gap-0.5 font-mono text-[13px] tracking-tight">
+                                                {% for item in cell.items %}
+                                                    {% if item.url %}
+                                                        <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer"
+                                                           class="px-1 py-0.5 rounded {% if row.is_villain %}text-rose-300 hover:bg-rose-500/10 hover:text-rose-200{% else %}text-emerald-200 hover:text-emerald-100 hover:bg-emerald-500/10{% endif %}"
+                                                           title="{{ row.username }} — {{ item.label }} ({{ item.points }} pts){% if row.is_villain %} — vilão{% endif %}">{{ item.label }}</a>
+                                                    {% else %}
+                                                        <span class="px-1 py-0.5 rounded {% if row.is_villain %}text-rose-300/90{% else %}text-emerald-300/80{% endif %}"
+                                                              title="{{ row.username }} — {{ item.label }} ({{ item.points }} pts) — submissão sem ID externo{% if row.is_villain %} — vilão{% endif %}">{{ item.label }}</span>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-slate-700">·</span>
+                                        {% endif %}
+                                    </td>
+                                {% endfor %}
+                                <td class="px-3 py-2 text-center font-semibold text-slate-100">
+                                    {{ row.total_solved }}
+                                </td>
+                                <td class="px-3 py-2 text-center font-semibold text-indigo-200 whitespace-nowrap">
+                                    {{ row.total_points }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="text-xs text-slate-500">
+            Letras correspondem aos problemas aceitos (verdict <span class="font-mono">OK</span>/<span class="font-mono">AC</span>).
+            Clique no nome do aluno para abrir o perfil ou no ID do contest para ver os detalhes locais.
+            {% if show_villains %}
+                Nomes, tags e letras em vermelho pertencem a usuários marcados como vilões.
+            {% endif %}
+        </p>
+    {% else %}
+        <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-10 text-center text-slate-400">
+            <p class="text-sm">Nenhum contest encontrado para os filtros atuais.</p>
+            <p class="text-xs text-slate-500 mt-2">Tente trocar a plataforma, categoria ou ampliar o intervalo.</p>
+        </div>
+    {% endif %}
+</section>
+
+<script>
+    (function () {
+        const platformSel = document.getElementById('matrixPlatform');
+        const catWrap = document.getElementById('matrixCategoryWrap');
+        const divWrap = document.getElementById('matrixDivisionWrap');
+        const showVillains = document.getElementById('matrixShowVillains');
+        if (!platformSel) return;
+        platformSel.addEventListener('change', function () {
+            const isAC = platformSel.value === 'AC';
+            if (catWrap) catWrap.hidden = !isAC;
+            if (divWrap) divWrap.hidden = isAC;
+        });
+        if (showVillains) {
+            showVillains.addEventListener('change', function () {
+                showVillains.form?.requestSubmit();
+            });
+        }
+    })();
+</script>
+{% endblock %}

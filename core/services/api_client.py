@@ -317,58 +317,7 @@ class AtCoderClient:
         if not handle:
             return None, "Sem handle."
 
-        url = f"{AtCoderClient.BASE_URL}/user/info"
-        params = {
-            'user': handle,
-        }
-
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = tracked_get(url, params=params, timeout=10)
-                if response.status_code == 404:
-                    info2, err2 = AtCoderClient._get_user_info_from_official(handle)
-                    if info2:
-                        return info2, None
-                    return None, err2 or "Usuário não encontrado no AtCoder (Kenkoooo)."
-                response.raise_for_status()
-                data = response.json()
-
-                rating = data.get('rating')
-                max_rating = data.get('highest_rating')
-                if max_rating is None:
-                    max_rating = rating
-
-                info = {
-                    'rating': rating,
-                    'max_rating': max_rating,
-                }
-
-                if rating is None:
-                    info2, err2 = AtCoderClient._get_user_info_from_official(handle)
-                    if info2:
-                        return info2, None
-                    return None, err2 or "Usuário sem rating no Kenkoooo."
-
-                return info, None
-
-            except requests.RequestException as e:
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
-                    continue
-                info2, err2 = AtCoderClient._get_user_info_from_official(handle)
-                if info2:
-                    return info2, None
-                if err2:
-                    return None, f"Kenkoooo: {e}. AtCoder: {err2}"
-                return None, f"Falha de conexão com AtCoder: {e}"
-            except Exception as e:
-                info2, err2 = AtCoderClient._get_user_info_from_official(handle)
-                if info2:
-                    return info2, None
-                if err2:
-                    return None, f"Kenkoooo: {e}. AtCoder: {err2}"
-                return None, f"Erro inesperado no parser do AtCoder: {e}"
+        return AtCoderClient._get_user_info_from_official(handle)
 
     @staticmethod
     def _get_user_info_from_official(handle):
@@ -436,7 +385,8 @@ class AtCoderClient:
                 if response.status_code == 403:
                     logger.warning(
                         "AtCoder (Kenkoooo) retornou 403 para %s. "
-                        "Endpoint de submissões indisponível; retornando lista vazia.",
+                        "Endpoint público de submissões indisponível; "
+                        "não há fallback oficial sem login para submissões globais.",
                         handle,
                     )
                     return []

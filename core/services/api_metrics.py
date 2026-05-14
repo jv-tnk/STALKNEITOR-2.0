@@ -42,7 +42,7 @@ def _infer_api_name(url: str) -> str:
     if "kenkoooo.com" in url_lower:
         if "submissions" in url_lower:
             return "ac.submissions"
-        if "user/info" in url_lower:
+        if "user/info" in url_lower or "user_info" in url_lower:
             return "ac.user_info"
         if "contests" in url_lower:
             return "ac.contests"

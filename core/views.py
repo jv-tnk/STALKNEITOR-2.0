@@ -73,11 +73,11 @@ def _build_admin_api_catalog() -> list[dict]:
             "notes": "Pode limitar chamadas em horario de pico.",
         },
         {
-            "name": "AtCoder API (Kenkoooo v3)",
+            "name": "AtCoder Submissions API (Kenkoooo v3)",
             "base_url": "https://kenkoooo.com/atcoder/atcoder-api/v3",
-            "usage": "Buscar submissões e rating do AtCoder.",
+            "usage": "Buscar submissões publicas do AtCoder quando o endpoint dinamico esta disponivel.",
             "internal": "core/services/api_client.py (AtCoderClient)",
-            "notes": "Se cair, o sistema usa o site oficial como plano B.",
+            "notes": "O rating nao depende mais deste endpoint; usa o historico oficial do AtCoder.",
         },
         {
             "name": "AtCoder Resources (S3 fallback)",
@@ -87,9 +87,9 @@ def _build_admin_api_catalog() -> list[dict]:
             "notes": "Fornece arquivos estaticos quando a API principal falha.",
         },
         {
-            "name": "AtCoder Oficial (history fallback)",
+            "name": "AtCoder Oficial (rating)",
             "base_url": "https://atcoder.jp/users/<handle>/history/json",
-            "usage": "Plano C para obter historico de rating direto do AtCoder.",
+            "usage": "Fonte primaria para obter rating atual e maximo direto do AtCoder.",
             "internal": "core/services/api_client.py (AtCoderClient._get_user_info_from_official)",
             "notes": "Pode vir vazio para usuario sem contest valendo rating.",
         },
@@ -200,10 +200,9 @@ def _run_admin_api_checks(force_refresh: bool = False) -> tuple[list[dict], date
 
     checks.append(
         _probe(
-            name="AtCoder API (Kenkoooo)",
-            endpoint="https://kenkoooo.com/atcoder/atcoder-api/v3/user/info",
-            params={"user": sample_ac_handle},
-            purpose=f"Conferir se conseguimos ler dados principais do AtCoder (exemplo: {sample_ac_handle}).",
+            name="AtCoder Oficial (rating)",
+            endpoint=f"https://atcoder.jp/users/{sample_ac_handle}/history/json",
+            purpose=f"Conferir se conseguimos ler historico de rating no site oficial (exemplo: {sample_ac_handle}).",
             parser=lambda response: (
                 response.status_code == 200,
                 "OK" if response.status_code == 200 else f"HTTP {response.status_code}",
@@ -225,12 +224,17 @@ def _run_admin_api_checks(force_refresh: bool = False) -> tuple[list[dict], date
 
     checks.append(
         _probe(
-            name="AtCoder Oficial (fallback)",
-            endpoint=f"https://atcoder.jp/users/{sample_ac_handle}/history/json",
-            purpose=f"Conferir o plano C de historico de rating no site oficial (exemplo: {sample_ac_handle}).",
+            name="AtCoder Submissions API (Kenkoooo)",
+            endpoint="https://kenkoooo.com/atcoder/atcoder-api/v3/user/submissions",
+            params={"user": sample_ac_handle, "from_second": 0},
+            purpose=f"Conferir o endpoint dinamico de submissões AtCoder (exemplo: {sample_ac_handle}).",
             parser=lambda response: (
-                response.status_code == 200,
-                "OK" if response.status_code == 200 else f"HTTP {response.status_code}",
+                response.status_code == 200 and isinstance(response.json(), list),
+                (
+                    f"OK ({len(response.json())} submissões no payload)"
+                    if response.status_code == 200
+                    else f"HTTP {response.status_code}; rating usa AtCoder oficial, mas sync de novas submissões AC fica limitado"
+                ),
             ),
         )
     )
